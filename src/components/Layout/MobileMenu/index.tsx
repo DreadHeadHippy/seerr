@@ -1,7 +1,8 @@
 import Badge from '@app/components/Common/Badge';
 import { menuMessages } from '@app/components/Layout/Sidebar';
 import useClickOutside from '@app/hooks/useClickOutside';
-import useSettings from '@app/hooks/useSettings';
+import type { BrowseSection } from '@app/hooks/useMediaAccess';
+import useMediaAccess, { isSectionVisible } from '@app/hooks/useMediaAccess';
 import { Permission, useUser } from '@app/hooks/useUser';
 import { Transition } from '@headlessui/react';
 import {
@@ -49,7 +50,7 @@ interface MenuLink {
   as?: string;
   requiredPermission?: Permission | Permission[];
   permissionType?: 'and' | 'or';
-  requiresMusic?: boolean;
+  mediaType?: BrowseSection;
   dataTestId?: string;
 }
 
@@ -63,7 +64,7 @@ const MobileMenu = ({
   const intl = useIntl();
   const [isOpen, setIsOpen] = useState(false);
   const { hasPermission } = useUser();
-  const { currentSettings } = useSettings();
+  const mediaAccess = useMediaAccess();
   const router = useRouter();
   useClickOutside(ref, () => {
     setTimeout(() => {
@@ -78,6 +79,7 @@ const MobileMenu = ({
   const menuLinks: MenuLink[] = [
     {
       href: '/',
+      mediaType: 'discover',
       content: intl.formatMessage(menuMessages.dashboard),
       svgIcon: <SparklesIcon className="h-6 w-6" />,
       svgIconSelected: <FilledSparklesIcon className="h-6 w-6" />,
@@ -85,6 +87,7 @@ const MobileMenu = ({
     },
     {
       href: '/discover/movies',
+      mediaType: 'movie',
       content: intl.formatMessage(menuMessages.browsemovies),
       svgIcon: <FilmIcon className="h-6 w-6" />,
       svgIconSelected: <FilledFilmIcon className="h-6 w-6" />,
@@ -92,6 +95,7 @@ const MobileMenu = ({
     },
     {
       href: '/discover/tv',
+      mediaType: 'tv',
       content: intl.formatMessage(menuMessages.browsetv),
       svgIcon: <TvIcon className="h-6 w-6" />,
       svgIconSelected: <FilledTvIcon className="h-6 w-6" />,
@@ -103,9 +107,7 @@ const MobileMenu = ({
       svgIcon: <MusicalNoteIcon className="h-6 w-6" />,
       svgIconSelected: <FilledMusicalNoteIcon className="h-6 w-6" />,
       activeRegExp: /^\/music/,
-      requiredPermission: [Permission.REQUEST, Permission.REQUEST_MUSIC],
-      permissionType: 'or',
-      requiresMusic: true,
+      mediaType: 'music',
     },
     {
       href: '/requests',
@@ -161,7 +163,7 @@ const MobileMenu = ({
 
   const filteredLinks = menuLinks.filter(
     (link) =>
-      (!link.requiresMusic || currentSettings.musicEnabled) &&
+      isSectionVisible(mediaAccess, link.mediaType) &&
       (!link.requiredPermission ||
         hasPermission(link.requiredPermission, {
           type: link.permissionType ?? 'and',

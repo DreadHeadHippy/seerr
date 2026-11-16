@@ -15,6 +15,8 @@ import TvGenreSlider from '@app/components/Discover/TvGenreSlider';
 import { sliderTitles } from '@app/components/Discover/constants';
 import MediaSlider from '@app/components/MediaSlider';
 import { encodeURIExtraParams } from '@app/hooks/useDiscover';
+import type { MediaAccess } from '@app/hooks/useMediaAccess';
+import useMediaAccess from '@app/hooks/useMediaAccess';
 import useToasts from '@app/hooks/useToasts';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
@@ -30,6 +32,7 @@ import {
 import { DiscoverSliderType } from '@server/constants/discover';
 import type DiscoverSlider from '@server/entity/DiscoverSlider';
 import axios from 'axios';
+import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 import { useIntl } from 'react-intl';
 import useSWR from 'swr';
@@ -52,9 +55,49 @@ const messages = defineMessages('components.Discover', {
   createnewslider: 'Create New Slider',
 });
 
+const MOVIE_SLIDERS = [
+  DiscoverSliderType.POPULAR_MOVIES,
+  DiscoverSliderType.MOVIE_GENRES,
+  DiscoverSliderType.UPCOMING_MOVIES,
+  DiscoverSliderType.STUDIOS,
+  DiscoverSliderType.TMDB_MOVIE_KEYWORD,
+  DiscoverSliderType.TMDB_MOVIE_GENRE,
+  DiscoverSliderType.TMDB_STUDIO,
+  DiscoverSliderType.TMDB_MOVIE_STREAMING_SERVICES,
+];
+
+const TV_SLIDERS = [
+  DiscoverSliderType.POPULAR_TV,
+  DiscoverSliderType.TV_GENRES,
+  DiscoverSliderType.UPCOMING_TV,
+  DiscoverSliderType.NETWORKS,
+  DiscoverSliderType.TMDB_TV_KEYWORD,
+  DiscoverSliderType.TMDB_TV_GENRE,
+  DiscoverSliderType.TMDB_NETWORK,
+  DiscoverSliderType.TMDB_TV_STREAMING_SERVICES,
+];
+
+// Hides sliders for media types the user cannot request (see useMediaAccess).
+const isSliderVisible = (
+  type: DiscoverSliderType | undefined,
+  access: MediaAccess
+): boolean => {
+  if (type !== undefined && MOVIE_SLIDERS.includes(type)) {
+    return access.movie;
+  }
+
+  if (type !== undefined && TV_SLIDERS.includes(type)) {
+    return access.tv;
+  }
+
+  return access.movie || access.tv;
+};
+
 const Discover = () => {
   const intl = useIntl();
+  const router = useRouter();
   const { hasPermission } = useUser();
+  const mediaAccess = useMediaAccess();
   const { addToast } = useToasts();
   const {
     data: discoverData,
@@ -71,6 +114,13 @@ const Discover = () => {
       setSliders(discoverData);
     }
   }, [discoverData, isEditing]);
+
+  // Users who can only request music have nothing to discover here.
+  useEffect(() => {
+    if (!mediaAccess.movie && !mediaAccess.tv && mediaAccess.music) {
+      router.replace('/music');
+    }
+  }, [mediaAccess.movie, mediaAccess.tv, mediaAccess.music, router]);
 
   const hasChanged = () => !Object.is(discoverData, sliders);
 
@@ -452,7 +502,7 @@ const Discover = () => {
           );
         }
 
-        if (!slider.enabled) {
+        if (!slider.enabled || !isSliderVisible(slider.type, mediaAccess)) {
           return null;
         }
 

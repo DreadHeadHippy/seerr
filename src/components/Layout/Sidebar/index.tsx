@@ -1,7 +1,8 @@
 import Badge from '@app/components/Common/Badge';
 import VersionStatus from '@app/components/Layout/VersionStatus';
 import useClickOutside from '@app/hooks/useClickOutside';
-import useSettings from '@app/hooks/useSettings';
+import type { BrowseSection } from '@app/hooks/useMediaAccess';
+import useMediaAccess, { isSectionVisible } from '@app/hooks/useMediaAccess';
 import { Permission, useUser } from '@app/hooks/useUser';
 import defineMessages from '@app/utils/defineMessages';
 import { Transition, TransitionChild } from '@headlessui/react';
@@ -52,25 +53,28 @@ interface SidebarLinkProps {
   as?: string;
   requiredPermission?: Permission | Permission[];
   permissionType?: 'and' | 'or';
-  requiresMusic?: boolean;
+  mediaType?: BrowseSection;
   dataTestId?: string;
 }
 
 const SidebarLinks: SidebarLinkProps[] = [
   {
     href: '/',
+    mediaType: 'discover',
     messagesKey: 'dashboard',
     svgIcon: <SparklesIcon className="mr-3 h-6 w-6" />,
     activeRegExp: /^\/(discover\/?)?$/,
   },
   {
     href: '/discover/movies',
+    mediaType: 'movie',
     messagesKey: 'browsemovies',
     svgIcon: <FilmIcon className="mr-3 h-6 w-6" />,
     activeRegExp: /^\/discover\/movies$/,
   },
   {
     href: '/discover/tv',
+    mediaType: 'tv',
     messagesKey: 'browsetv',
     svgIcon: <TvIcon className="mr-3 h-6 w-6" />,
     activeRegExp: /^\/discover\/tv$/,
@@ -80,9 +84,7 @@ const SidebarLinks: SidebarLinkProps[] = [
     messagesKey: 'browsemusic',
     svgIcon: <MusicalNoteIcon className="mr-3 h-6 w-6" />,
     activeRegExp: /^\/music/,
-    requiredPermission: [Permission.REQUEST, Permission.REQUEST_MUSIC],
-    permissionType: 'or',
-    requiresMusic: true,
+    mediaType: 'music',
   },
   {
     href: '/requests',
@@ -143,12 +145,12 @@ const Sidebar = ({
   const router = useRouter();
   const intl = useIntl();
   const { hasPermission } = useUser();
-  const { currentSettings } = useSettings();
+  const mediaAccess = useMediaAccess();
   useClickOutside(navRef, () => setClosed());
 
   const visibleLinks = SidebarLinks.filter(
     (link) =>
-      (!link.requiresMusic || currentSettings.musicEnabled) &&
+      isSectionVisible(mediaAccess, link.mediaType) &&
       (!link.requiredPermission ||
         hasPermission(link.requiredPermission, {
           type: link.permissionType ?? 'and',
