@@ -93,6 +93,74 @@ export interface MetadataProfile {
   name: string;
 }
 
+export interface LidarrImageWithRemote extends LidarrImage {
+  remoteUrl?: string;
+}
+
+export interface LidarrArtist {
+  id?: number;
+  artistName: string;
+  foreignArtistId: string;
+  disambiguation?: string;
+  overview?: string;
+  artistType?: string;
+  status?: string;
+  genres: string[];
+  images: LidarrImageWithRemote[];
+  links: LidarrLink[];
+  ratings?: LidarrRating;
+  monitored?: boolean;
+  monitorNewItems?: string;
+  path?: string;
+  qualityProfileId?: number;
+  metadataProfileId?: number;
+  rootFolderPath?: string;
+  tags?: number[];
+  statistics?: {
+    albumCount: number;
+    trackFileCount: number;
+    trackCount: number;
+    totalTrackCount: number;
+    sizeOnDisk: number;
+    percentOfTracks: number;
+  };
+}
+
+/**
+ * Which existing albums Lidarr should monitor when an artist is added.
+ * Mirrors the "Monitor" dropdown in Lidarr's own Add Artist dialog.
+ */
+export const LIDARR_MONITOR_OPTIONS = [
+  'all',
+  'future',
+  'missing',
+  'existing',
+  'latest',
+  'first',
+  'none',
+] as const;
+
+export type LidarrMonitorOption = (typeof LIDARR_MONITOR_OPTIONS)[number];
+
+/**
+ * Which albums Lidarr should monitor when they are released in the future.
+ */
+export const LIDARR_MONITOR_NEW_ITEMS_OPTIONS = ['all', 'none', 'new'] as const;
+
+export type LidarrMonitorNewItemsOption =
+  (typeof LIDARR_MONITOR_NEW_ITEMS_OPTIONS)[number];
+
+export interface LidarrAddArtistOptions {
+  foreignArtistId: string;
+  qualityProfileId: number;
+  metadataProfileId: number;
+  rootFolderPath: string;
+  monitor: LidarrMonitorOption;
+  monitorNewItems: LidarrMonitorNewItemsOption;
+  tags: number[];
+  searchNow: boolean;
+}
+
 class LidarrAPI extends ServarrBase<{ albumId: number }> {
   constructor({ url, apiKey }: { url: string; apiKey: string }) {
     super({ url, apiKey, cacheName: 'lidarr', apiName: 'Lidarr' });
@@ -252,6 +320,97 @@ class LidarrAPI extends ServarrBase<{ albumId: number }> {
           albumId,
         }
       );
+    }
+  }
+
+  public async searchArtists(term: string): Promise<LidarrArtist[]> {
+    try {
+      const response = await this.axios.get<LidarrArtist[]>('/artist/lookup', {
+        params: { term },
+      });
+
+      return response.data;
+    } catch (e) {
+      logger.error('Something went wrong while searching Lidarr for artists.', {
+        label: 'Lidarr API',
+        errorMessage: e.message,
+        term,
+      });
+      throw new Error('Failed to search artists', { cause: e });
+    }
+  }
+
+  public async getArtistByForeignArtistId(
+    foreignArtistId: string
+  ): Promise<LidarrArtist> {
+    const results = await this.searchArtists(`lidarr:${foreignArtistId}`);
+    const artist = results.find(
+      (result) => result.foreignArtistId === foreignArtistId
+    );
+
+    if (!artist) {
+      throw new Error('Artist not found');
+    }
+
+    return artist;
+  }
+
+  public async addArtist(
+    options: LidarrAddArtistOptions
+  ): Promise<LidarrArtist> {
+    try {
+      const artist = await this.getArtistByForeignArtistId(
+        options.foreignArtistId
+      );
+
+      // Lookup results carry an id only when the artist is already in Lidarr.
+      if (artist.id) {
+        logger.info('Artist already exists in Lidarr. Skipping add.', {
+          label: 'Lidarr',
+          artistId: artist.id,
+          artistName: artist.artistName,
+        });
+
+        return artist;
+      }
+
+      const response = await this.axios.post<LidarrArtist>('/artist', {
+        ...artist,
+        qualityProfileId: options.qualityProfileId,
+        metadataProfileId: options.metadataProfileId,
+        rootFolderPath: options.rootFolderPath,
+        tags: options.tags,
+        monitored: options.monitor !== 'none',
+        monitorNewItems: options.monitorNewItems,
+        addOptions: {
+          monitor: options.monitor,
+          searchForMissingAlbums: options.searchNow,
+        },
+      });
+
+      if (!response.data.id) {
+        throw new Error('Lidarr did not return an artist id');
+      }
+
+      logger.info('Lidarr accepted request', {
+        label: 'Lidarr',
+        artistId: response.data.id,
+        artistName: response.data.artistName,
+      });
+      logger.debug('Lidarr add details', {
+        label: 'Lidarr',
+        artist: response.data,
+      });
+
+      return response.data;
+    } catch (e) {
+      logger.error('Something went wrong while adding an artist to Lidarr.', {
+        label: 'Lidarr API',
+        errorMessage: e.message,
+        options,
+        response: e?.response?.data,
+      });
+      throw new Error('Failed to add artist', { cause: e });
     }
   }
 

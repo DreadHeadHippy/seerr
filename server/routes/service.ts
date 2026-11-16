@@ -225,6 +225,7 @@ serviceRoutes.get('/lidarr', async (req, res) => {
       isDefault: lidarr.isDefault,
       activeDirectory: lidarr.activeDirectory,
       activeProfileId: lidarr.activeProfileId,
+      activeMetadataProfileId: lidarr.activeMetadataProfileId,
       activeTags: lidarr.tags ?? [],
     })
   );
@@ -256,6 +257,7 @@ serviceRoutes.get<{ lidarrId: string }>(
     try {
       const profiles = await lidarr.getProfiles();
       const rootFolders = await lidarr.getRootFolders();
+      const metadataProfiles = await lidarr.getMetadataProfiles();
       const tags = await lidarr.getTags();
 
       return res.status(200).json({
@@ -266,6 +268,7 @@ serviceRoutes.get<{ lidarrId: string }>(
           isDefault: lidarrSettings.isDefault,
           activeDirectory: lidarrSettings.activeDirectory,
           activeProfileId: lidarrSettings.activeProfileId,
+          activeMetadataProfileId: lidarrSettings.activeMetadataProfileId,
           activeTags: lidarrSettings.tags,
         },
         profiles: profiles.map((profile) => ({
@@ -277,6 +280,10 @@ serviceRoutes.get<{ lidarrId: string }>(
           freeSpace: folder.freeSpace,
           path: folder.path,
           totalSpace: folder.totalSpace,
+        })),
+        metadataProfiles: metadataProfiles.map((profile) => ({
+          id: profile.id,
+          name: profile.name,
         })),
         tags,
       } as ServiceCommonServerWithDetails);

@@ -6,7 +6,7 @@ const imageLoader: ImageLoader = ({ src }) => src;
 
 export type CachedImageProps = ImageProps & {
   src: string;
-  type: 'tmdb' | 'avatar' | 'tvdb';
+  type: 'tmdb' | 'avatar' | 'tvdb' | 'music';
 };
 
 /**
@@ -34,6 +34,9 @@ const CachedImage = ({ src, type, ...props }: CachedImageProps) => {
         : src;
   } else if (type === 'avatar') {
     // jellyfin avatar (if any)
+    imageUrl = src;
+  } else if (type === 'music') {
+    // artist artwork provided by Lidarr's metadata sources
     imageUrl = src;
   } else {
     return null;

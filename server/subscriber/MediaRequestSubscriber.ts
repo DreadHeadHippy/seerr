@@ -31,7 +31,7 @@ import type {
 } from 'typeorm';
 import { EventSubscriber, Not } from 'typeorm';
 
-const sanitizeDisplayName = (displayName: string): string => {
+export const sanitizeDisplayName = (displayName: string): string => {
   return displayName
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')

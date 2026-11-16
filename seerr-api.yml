@@ -36,6 +36,8 @@ tags:
     description: Endpoints related to retrieving collection details.
   - name: service
     description: Endpoints related to getting service (Radarr/Sonarr/Lidarr) details.
+  - name: music
+    description: Endpoints related to searching for artists and adding them to Lidarr.
   - name: watchlist
     description: Collection of media to watch later
   - name: blocklist
@@ -715,6 +717,39 @@ components:
         - is4k
         - enableSeasonFolders
         - isDefault
+    MusicArtistResult:
+      type: object
+      properties:
+        foreignArtistId:
+          type: string
+          example: 056e4f3e-d505-4dad-8ec1-d04f521cbb56
+        artistName:
+          type: string
+          example: Daft Punk
+        disambiguation:
+          type: string
+        overview:
+          type: string
+        artistType:
+          type: string
+        genres:
+          type: array
+          items:
+            type: string
+        posterUrl:
+          type: string
+        fanartUrl:
+          type: string
+        inLidarr:
+          type: boolean
+        monitored:
+          type: boolean
+        albumCount:
+          type: number
+        trackFileCount:
+          type: number
+        lidarrUrl:
+          type: string
     LidarrSettings:
       type: object
       properties:
@@ -7824,6 +7859,80 @@ paths:
                     $ref: '#/components/schemas/LidarrSettings'
                   profiles:
                     $ref: '#/components/schemas/ServiceProfile'
+  /music/search:
+    get:
+      summary: Search for artists
+      description: Searches the default Lidarr server for artists matching the query. Returns matching artists and whether each is already in Lidarr.
+      tags:
+        - music
+      parameters:
+        - in: query
+          name: query
+          required: true
+          schema:
+            type: string
+            example: 'Daft Punk'
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MusicArtistResult'
+  /music/artist:
+    post:
+      summary: Add an artist to Lidarr
+      description: |
+        Adds an artist to Lidarr using the default server settings. Requires the `REQUEST` or `REQUEST_MUSIC` permission.
+
+        Server, profile, metadata profile, root folder and tag overrides are only applied for users with the `REQUEST_ADVANCED` or `MANAGE_REQUESTS` permission.
+      tags:
+        - music
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - foreignArtistId
+              properties:
+                foreignArtistId:
+                  type: string
+                  description: MusicBrainz artist ID
+                  example: 056e4f3e-d505-4dad-8ec1-d04f521cbb56
+                monitor:
+                  type: string
+                  enum: [all, future, missing, existing, latest, first, none]
+                  default: all
+                monitorNewItems:
+                  type: string
+                  enum: [all, none, new]
+                  default: all
+                serverId:
+                  type: number
+                profileId:
+                  type: number
+                metadataProfileId:
+                  type: number
+                rootFolder:
+                  type: string
+                tags:
+                  type: array
+                  items:
+                    type: number
+      responses:
+        '201':
+          description: Artist added to Lidarr
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MusicArtistResult'
   /regions:
     get:
       summary: Regions supported by TMDB
