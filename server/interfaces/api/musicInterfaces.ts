@@ -33,3 +33,37 @@ export interface MusicArtistAddBody {
   rootFolder?: string;
   tags?: number[];
 }
+
+export interface MusicAlbumResult {
+  foreignAlbumId: string;
+  title: string;
+  albumType: string;
+  artistName: string;
+  foreignArtistId?: string;
+  releaseDate: string;
+  coverUrl?: string;
+  inLidarr: boolean;
+  monitored: boolean;
+  hasFiles: boolean;
+  lidarrUrl?: string;
+}
+
+export interface MusicAlbumsResponse {
+  results: MusicAlbumResult[];
+}
+
+export interface MusicAlbumAddBody {
+  foreignAlbumId: string;
+  serverId?: number;
+  profileId?: number;
+  metadataProfileId?: number;
+  rootFolder?: string;
+  tags?: number[];
+}
+
+export interface MusicPersonalResponse {
+  /** Library artists for the "Because you like" rows. */
+  seeds: { foreignArtistId: string; artistName: string }[];
+  /** The library's most common genres, for the "More {genre}" rows. */
+  genres: string[];
+}

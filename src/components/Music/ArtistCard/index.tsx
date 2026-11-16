@@ -1,7 +1,7 @@
 import Button from '@app/components/Common/Button';
 import CachedImage from '@app/components/Common/CachedImage';
 import StatusBadgeMini from '@app/components/Common/StatusBadgeMini';
-import ArtistRequestModal from '@app/components/RequestModal/ArtistRequestModal';
+import MusicRequestModal from '@app/components/RequestModal/MusicRequestModal';
 import { useIsTouch } from '@app/hooks/useIsTouch';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
@@ -63,7 +63,7 @@ const ArtistCard = ({
 
   return (
     <div className={canExpand ? 'w-full' : 'w-36 sm:w-36 md:w-44'}>
-      <ArtistRequestModal
+      <MusicRequestModal
         show={showRequestModal}
         artist={artist}
         onComplete={(added) => {

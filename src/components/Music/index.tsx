@@ -11,7 +11,10 @@ import globalMessages from '@app/i18n/globalMessages';
 import ErrorPage from '@app/pages/_error';
 import defineMessages from '@app/utils/defineMessages';
 import { MagnifyingGlassIcon } from '@heroicons/react/24/solid';
-import type { MusicSearchResponse } from '@server/interfaces/api/musicInterfaces';
+import type {
+  MusicPersonalResponse,
+  MusicSearchResponse,
+} from '@server/interfaces/api/musicInterfaces';
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 import { useIntl } from 'react-intl';
@@ -25,7 +28,11 @@ const messages = defineMessages('components.Music', {
     'No Lidarr server is configured. An administrator can add one under Settings → Services.',
   recentlyAdded: 'Recently Added',
   recentlyAddedEmpty: 'No artists have been added to Lidarr yet.',
-  similarToLibrary: 'Similar to Your Library',
+  recommendedForYou: 'Recommended for You',
+  newFromYourArtists: 'New from Your Artists',
+  newThisWeek: 'New This Week',
+  becauseYouLike: 'Because You Like {artist}',
+  moreGenre: 'More {genre}',
   similarToLibraryEmpty:
     'Add a few artists to Lidarr to get recommendations based on your library.',
   topArtists: 'Top Artists',
@@ -114,9 +121,61 @@ const Music = () => {
     { revalidateOnFocus: false }
   );
 
+  const { data: personal } = useSWR<MusicPersonalResponse>(
+    currentSettings.musicDiscoveryEnabled && !query
+      ? '/api/v1/music/discover/personal'
+      : null,
+    { revalidateOnFocus: false }
+  );
+
   if (error) {
     return <ErrorPage statusCode={500} />;
   }
+
+  const recentlyAddedRow = (
+    <MusicSlider
+      sliderKey="music-recent"
+      title={intl.formatMessage(messages.recentlyAdded)}
+      url="/api/v1/music/discover/recent"
+      emptyMessage={intl.formatMessage(messages.recentlyAddedEmpty)}
+    />
+  );
+
+  // "Because You Like {artist}" rows, seeded from the library (rotates daily).
+  const becauseRow = (index: number) => {
+    const seed = personal?.seeds[index];
+
+    return seed ? (
+      <MusicSlider
+        key={`music-because-${seed.foreignArtistId}`}
+        sliderKey={`music-because-${seed.foreignArtistId}`}
+        title={intl.formatMessage(messages.becauseYouLike, {
+          artist: seed.artistName,
+        })}
+        url={`/api/v1/music/discover/similar/${seed.foreignArtistId}`}
+        hideWhenEmpty
+      />
+    ) : null;
+  };
+
+  // "More {genre}" rows for the library's most common genres.
+  const genreRow = (index: number) => {
+    const libraryGenre = personal?.genres[index];
+
+    return libraryGenre ? (
+      <MusicSlider
+        key={`music-more-${libraryGenre}`}
+        sliderKey={`music-more-${libraryGenre}`}
+        title={intl.formatMessage(messages.moreGenre, {
+          genre: libraryGenre,
+        })}
+        url={`/api/v1/music/discover/genre/${encodeURIComponent(
+          libraryGenre.toLowerCase()
+        )}`}
+        hideWhenEmpty
+      />
+    ) : null;
+  };
 
   return (
     <>
@@ -169,26 +228,41 @@ const Music = () => {
           ) : (
             <>
               <MusicSlider
-                sliderKey="music-recent"
-                title={intl.formatMessage(messages.recentlyAdded)}
-                url="/api/v1/music/discover/recent"
-                emptyMessage={intl.formatMessage(messages.recentlyAddedEmpty)}
+                sliderKey="music-new-library"
+                kind="album"
+                title={intl.formatMessage(messages.newFromYourArtists)}
+                url="/api/v1/music/discover/new-from-library"
+                hideWhenEmpty
               />
               {currentSettings.musicDiscoveryEnabled ? (
                 <>
                   <MusicSlider
                     sliderKey="music-similar"
-                    title={intl.formatMessage(messages.similarToLibrary)}
+                    title={intl.formatMessage(messages.recommendedForYou)}
                     url="/api/v1/music/discover/similar"
                     emptyMessage={intl.formatMessage(
                       messages.similarToLibraryEmpty
                     )}
                   />
                   <MusicSlider
+                    sliderKey="music-new-week"
+                    kind="album"
+                    title={intl.formatMessage(messages.newThisWeek)}
+                    url="/api/v1/music/discover/new-this-week"
+                    hideWhenEmpty
+                  />
+                  {becauseRow(0)}
+                  {recentlyAddedRow}
+                  {becauseRow(1)}
+                  {genreRow(0)}
+                  {becauseRow(2)}
+                  <MusicSlider
                     sliderKey="music-top"
                     title={intl.formatMessage(messages.topArtists)}
                     url="/api/v1/music/discover/top"
                   />
+                  {genreRow(1)}
+                  {becauseRow(3)}
                   <MusicSlider
                     sliderKey={`music-genre-${genre}`}
                     title={intl.formatMessage(messages.topArtistsByGenre)}
@@ -216,14 +290,17 @@ const Music = () => {
                   />
                 </>
               ) : (
-                hasPermission(Permission.ADMIN) && (
-                  <div className="mt-6">
-                    <Alert
-                      title={intl.formatMessage(messages.lastfmNotConfigured)}
-                      type="info"
-                    />
-                  </div>
-                )
+                <>
+                  {recentlyAddedRow}
+                  {hasPermission(Permission.ADMIN) && (
+                    <div className="mt-6">
+                      <Alert
+                        title={intl.formatMessage(messages.lastfmNotConfigured)}
+                        type="info"
+                      />
+                    </div>
+                  )}
+                </>
               )}
             </>
           )}

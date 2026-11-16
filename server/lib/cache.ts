@@ -13,7 +13,8 @@ export type AvailableCacheIds =
   | 'tvdb'
   | 'lidarr'
   | 'lastfm'
-  | 'deezer';
+  | 'deezer'
+  | 'listenbrainz';
 
 const DEFAULT_TTL = 300;
 
@@ -40,6 +41,9 @@ const LASTFM_MAX_KEYS = 500;
 
 // One key per artist name that needed a fallback photo.
 const DEEZER_MAX_KEYS = 2000;
+
+// The fresh releases feed is a single large key.
+const LISTENBRAINZ_MAX_KEYS = 8;
 
 // One key per searched title, each holding twenty search hits.
 const RT_MAX_KEYS = 500;
@@ -247,6 +251,10 @@ class CacheManager {
     deezer: new Cache('deezer', 'Deezer API', {
       stdTtl: 604800,
       max: DEEZER_MAX_KEYS,
+    }),
+    listenbrainz: new Cache('listenbrainz', 'ListenBrainz API', {
+      stdTtl: 21600,
+      max: LISTENBRAINZ_MAX_KEYS,
     }),
     rt: new Cache('rt', 'Rotten Tomatoes API', {
       stdTtl: 43200,

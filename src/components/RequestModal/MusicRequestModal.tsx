@@ -10,6 +10,8 @@ import type {
   LidarrMonitorOption,
 } from '@server/api/servarr/lidarr';
 import type {
+  MusicAlbumAddBody,
+  MusicAlbumResult,
   MusicArtistAddBody,
   MusicArtistResult,
 } from '@server/interfaces/api/musicInterfaces';
@@ -18,13 +20,19 @@ import type {
   ServiceCommonServerWithDetails,
 } from '@server/interfaces/api/serviceInterfaces';
 import { Permission } from '@server/lib/permissions';
-import axios from 'axios';
+import axios, { isAxiosError } from 'axios';
 import { useEffect, useState } from 'react';
 import { useIntl } from 'react-intl';
 import useSWR from 'swr';
 
-const messages = defineMessages('components.RequestModal.ArtistRequestModal', {
+const messages = defineMessages('components.RequestModal.MusicRequestModal', {
   requestartisttitle: 'Request Artist',
+  requestalbumtitle: 'Request Album',
+  albumsubtitle: '{title} by {artist}',
+  requestalbuminfo:
+    "This album will be monitored and searched for in Lidarr. If {artist} isn't in Lidarr yet, they'll be added with only this album monitored.",
+  requestalbumerror:
+    'Something went wrong while requesting the album in Lidarr.',
   requestSuccess: '<strong>{title}</strong> added to Lidarr!',
   requesterror: 'Something went wrong while adding the artist to Lidarr.',
   requestinfo:
@@ -49,19 +57,25 @@ const messages = defineMessages('components.RequestModal.ArtistRequestModal', {
   default: '{name} (Default)',
 });
 
-interface ArtistRequestModalProps {
+type MusicRequestModalProps = {
   show: boolean;
-  artist: MusicArtistResult;
-  onComplete?: (artist: MusicArtistResult) => void;
   onCancel?: () => void;
-}
+} & (
+  | {
+      artist: MusicArtistResult;
+      album?: never;
+      onComplete?: (artist: MusicArtistResult) => void;
+    }
+  | {
+      album: MusicAlbumResult;
+      artist?: never;
+      onComplete?: (album: Partial<MusicAlbumResult>) => void;
+    }
+);
 
-const ArtistRequestModal = ({
-  show,
-  artist,
-  onComplete,
-  onCancel,
-}: ArtistRequestModalProps) => {
+/** Requests an artist (with monitor options) or a single album from Lidarr. */
+const MusicRequestModal = (props: MusicRequestModalProps) => {
+  const { show, artist, album, onCancel } = props;
   const intl = useIntl();
   const { addToast } = useToasts();
   const { hasPermission } = useUser();
@@ -112,41 +126,61 @@ const ArtistRequestModal = ({
   const sendRequest = async () => {
     setIsUpdating(true);
 
+    const overrides =
+      canOverride && selectedServer !== null
+        ? {
+            serverId: selectedServer,
+            profileId: selectedProfile ?? undefined,
+            metadataProfileId: selectedMetadataProfile ?? undefined,
+            rootFolder: selectedFolder ?? undefined,
+          }
+        : {};
+
     try {
-      const body: MusicArtistAddBody = {
-        foreignArtistId: artist.foreignArtistId,
-        monitor,
-        monitorNewItems,
-      };
+      if (props.album) {
+        const response = await axios.post<Partial<MusicAlbumResult>>(
+          '/api/v1/music/album',
+          {
+            foreignAlbumId: props.album.foreignAlbumId,
+            ...overrides,
+          } as MusicAlbumAddBody
+        );
 
-      if (canOverride && selectedServer !== null) {
-        body.serverId = selectedServer;
-        body.profileId = selectedProfile ?? undefined;
-        body.metadataProfileId = selectedMetadataProfile ?? undefined;
-        body.rootFolder = selectedFolder ?? undefined;
+        props.onComplete?.(response.data);
+      } else {
+        const response = await axios.post<MusicArtistResult>(
+          '/api/v1/music/artist',
+          {
+            foreignArtistId: props.artist.foreignArtistId,
+            monitor,
+            monitorNewItems,
+            ...overrides,
+          } as MusicArtistAddBody
+        );
+
+        props.onComplete?.(response.data);
       }
-
-      const response = await axios.post<MusicArtistResult>(
-        '/api/v1/music/artist',
-        body
-      );
 
       addToast(
         <span>
           {intl.formatMessage(messages.requestSuccess, {
-            title: artist.artistName,
+            title: album ? album.title : artist?.artistName,
             strong: (msg: React.ReactNode) => <strong>{msg}</strong>,
           })}
         </span>,
         { appearance: 'success', autoDismiss: true }
       );
+    } catch (e) {
+      const serverMessage =
+        album && isAxiosError(e) ? e.response?.data?.message : undefined;
 
-      onComplete?.(response.data);
-    } catch {
-      addToast(intl.formatMessage(messages.requesterror), {
-        appearance: 'error',
-        autoDismiss: true,
-      });
+      addToast(
+        serverMessage ??
+          intl.formatMessage(
+            album ? messages.requestalbumerror : messages.requesterror
+          ),
+        { appearance: 'error', autoDismiss: true }
+      );
     } finally {
       setIsUpdating(false);
     }
@@ -195,20 +229,38 @@ const ArtistRequestModal = ({
         onCancel={onCancel}
         onOk={sendRequest}
         okDisabled={isUpdating}
-        title={intl.formatMessage(messages.requestartisttitle)}
-        subTitle={artist.artistName}
+        title={intl.formatMessage(
+          album ? messages.requestalbumtitle : messages.requestartisttitle
+        )}
+        subTitle={
+          album
+            ? intl.formatMessage(messages.albumsubtitle, {
+                title: album.title,
+                artist: album.artistName,
+              })
+            : artist?.artistName
+        }
         okText={
           isUpdating
             ? intl.formatMessage(globalMessages.requesting)
             : intl.formatMessage(globalMessages.request)
         }
         okButtonType="primary"
-        backdrop={artist.fanartUrl}
+        backdrop={album ? album.coverUrl : artist?.fanartUrl}
       >
         <div className="mt-6">
-          <Alert title={intl.formatMessage(messages.requestinfo)} type="info" />
+          <Alert
+            title={
+              album
+                ? intl.formatMessage(messages.requestalbuminfo, {
+                    artist: album.artistName,
+                  })
+                : intl.formatMessage(messages.requestinfo)
+            }
+            type="info"
+          />
         </div>
-        <div className="flex flex-col md:flex-row">
+        <div className={album ? 'hidden' : 'flex flex-col md:flex-row'}>
           <div className="mb-3 w-full flex-shrink-0 flex-grow last:pr-0 md:w-1/2 md:pr-4">
             <label htmlFor="monitor">
               {intl.formatMessage(messages.monitor)}
@@ -397,4 +449,4 @@ const ArtistRequestModal = ({
   );
 };
 
-export default ArtistRequestModal;
+export default MusicRequestModal;

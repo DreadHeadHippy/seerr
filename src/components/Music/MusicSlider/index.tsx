@@ -1,13 +1,21 @@
+import AlbumCard from '@app/components/Music/AlbumCard';
 import ArtistCard from '@app/components/Music/ArtistCard';
 import Slider from '@app/components/Slider';
-import type { MusicSearchResponse } from '@server/interfaces/api/musicInterfaces';
+import type {
+  MusicAlbumsResponse,
+  MusicSearchResponse,
+} from '@server/interfaces/api/musicInterfaces';
 import useSWR from 'swr';
 
 interface MusicSliderProps {
   sliderKey: string;
   title: React.ReactNode;
   url: string;
+  /** Whether the row shows artists (default) or album releases. */
+  kind?: 'artist' | 'album';
   emptyMessage?: React.ReactNode;
+  /** Hide the whole row instead of showing an empty message. */
+  hideWhenEmpty?: boolean;
   headerExtra?: React.ReactNode;
 }
 
@@ -15,17 +23,37 @@ const MusicSlider = ({
   sliderKey,
   title,
   url,
+  kind = 'artist',
   emptyMessage,
+  hideWhenEmpty,
   headerExtra,
 }: MusicSliderProps) => {
-  const { data, error } = useSWR<MusicSearchResponse>(url, {
-    revalidateOnFocus: false,
-  });
+  const { data, error } = useSWR<MusicSearchResponse | MusicAlbumsResponse>(
+    url,
+    { revalidateOnFocus: false }
+  );
 
-  // Hide a slider whose source failed rather than showing an error per row.
-  if (error) {
+  const isEmpty = !!data && data.results.length === 0;
+
+  // Hide a row whose source failed rather than showing an error per row.
+  if (error || (hideWhenEmpty && isEmpty)) {
     return null;
   }
+
+  const items =
+    kind === 'album'
+      ? (data as MusicAlbumsResponse | undefined)?.results.map((album) => (
+          <AlbumCard
+            key={`${sliderKey}-${album.foreignAlbumId}`}
+            album={album}
+          />
+        ))
+      : (data as MusicSearchResponse | undefined)?.results.map((artist) => (
+          <ArtistCard
+            key={`${sliderKey}-${artist.foreignArtistId}`}
+            artist={artist}
+          />
+        ));
 
   return (
     <>
@@ -38,14 +66,9 @@ const MusicSlider = ({
       <Slider
         sliderKey={sliderKey}
         isLoading={!data}
-        isEmpty={!!data && data.results.length === 0}
+        isEmpty={isEmpty}
         emptyMessage={emptyMessage}
-        items={data?.results.map((artist) => (
-          <ArtistCard
-            key={`${sliderKey}-${artist.foreignArtistId}`}
-            artist={artist}
-          />
-        ))}
+        items={items}
       />
     </>
   );

@@ -727,6 +727,33 @@ components:
         - is4k
         - enableSeasonFolders
         - isDefault
+    MusicAlbumResult:
+      type: object
+      properties:
+        foreignAlbumId:
+          type: string
+        title:
+          type: string
+        albumType:
+          type: string
+          example: Album
+        artistName:
+          type: string
+        foreignArtistId:
+          type: string
+        releaseDate:
+          type: string
+          example: '2026-11-14'
+        coverUrl:
+          type: string
+        inLidarr:
+          type: boolean
+        monitored:
+          type: boolean
+        hasFiles:
+          type: boolean
+        lidarrUrl:
+          type: string
     MusicArtistResult:
       type: object
       properties:
@@ -8004,6 +8031,93 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/MusicArtistResult'
+  /music/discover/similar/{foreignArtistId}:
+    get:
+      summary: Artists similar to a library artist
+      description: Returns Last.fm artists similar to one artist in Lidarr, excluding artists already in Lidarr. Requires a Last.fm API key.
+      tags:
+        - music
+      parameters:
+        - in: path
+          name: foreignArtistId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Artists
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MusicArtistResult'
+  /music/discover/personal:
+    get:
+      summary: Personalized row seeds
+      description: Returns the library artists used for the "Because you like" rows (rotating daily) and the library's most common genres.
+      tags:
+        - music
+      responses:
+        '200':
+          description: Seeds
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  seeds:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        foreignArtistId:
+                          type: string
+                        artistName:
+                          type: string
+                  genres:
+                    type: array
+                    items:
+                      type: string
+  /music/discover/new-from-library:
+    get:
+      summary: New releases from library artists
+      description: Returns releases from the last 30 days (via ListenBrainz) by artists in Lidarr.
+      tags:
+        - music
+      responses:
+        '200':
+          description: Albums
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MusicAlbumResult'
+  /music/discover/new-this-week:
+    get:
+      summary: New releases this week
+      description: Returns this week's releases (via ListenBrainz) by artists similar to the library, in the library's top genres or on the Last.fm chart. Requires a Last.fm API key.
+      tags:
+        - music
+      responses:
+        '200':
+          description: Albums
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MusicAlbumResult'
   /music/artist:
     post:
       summary: Add an artist to Lidarr
@@ -8053,6 +8167,44 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MusicArtistResult'
+  /music/album:
+    post:
+      summary: Request an album in Lidarr
+      description: |
+        Monitors and searches for an album (MusicBrainz release group). If the album's artist is not in Lidarr yet, the artist is added with only this album monitored. Requires the `REQUEST` or `REQUEST_MUSIC` permission; overrides follow the same rules as artist requests.
+      tags:
+        - music
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - foreignAlbumId
+              properties:
+                foreignAlbumId:
+                  type: string
+                  description: MusicBrainz release group ID
+                serverId:
+                  type: number
+                profileId:
+                  type: number
+                metadataProfileId:
+                  type: number
+                rootFolder:
+                  type: string
+                tags:
+                  type: array
+                  items:
+                    type: number
+      responses:
+        '201':
+          description: Album requested
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MusicAlbumResult'
   /regions:
     get:
       summary: Regions supported by TMDB

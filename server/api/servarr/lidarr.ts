@@ -368,6 +368,97 @@ class LidarrAPI extends ServarrBase<{ albumId: number }> {
     }
   }
 
+  /**
+   * The library copy of an album (by MusicBrainz release group id), or
+   * undefined when it is not in Lidarr. Cached briefly for the new release
+   * rows on the Music page.
+   */
+  public async getLibraryAlbum(
+    foreignAlbumId: string
+  ): Promise<LidarrAlbum | undefined> {
+    const albums = await this.get<LidarrAlbum[]>(
+      '/album',
+      { params: { foreignAlbumId } },
+      60
+    );
+
+    return albums.find((album) => album.foreignAlbumId === foreignAlbumId);
+  }
+
+  /**
+   * Requests a single album. If the album is already in Lidarr it is
+   * monitored and searched for. Otherwise it is added, which also adds its
+   * artist (with only this album monitored) when the artist is new.
+   */
+  public async requestAlbum(options: {
+    foreignAlbumId: string;
+    qualityProfileId: number;
+    metadataProfileId: number;
+    rootFolderPath: string;
+    tags: number[];
+    searchNow: boolean;
+  }): Promise<LidarrAlbum> {
+    const existing = await this.getLibraryAlbum(options.foreignAlbumId).catch(
+      () => undefined
+    );
+
+    if (existing) {
+      const response = await this.axios.put<LidarrAlbum>(
+        `/album/${existing.id}`,
+        { ...existing, monitored: true }
+      );
+
+      if (options.searchNow) {
+        await this.searchAlbum(existing.id);
+      }
+
+      logger.info('Monitored existing album in Lidarr', {
+        label: 'Lidarr',
+        albumId: existing.id,
+        albumTitle: existing.title,
+      });
+
+      return response.data;
+    }
+
+    const lookup = await this.axios.get<
+      (LidarrAlbum & { artist?: Record<string, unknown> })[]
+    >('/album/lookup', {
+      params: { term: `lidarr:${options.foreignAlbumId}` },
+    });
+    const album = lookup.data.find(
+      (result) => result.foreignAlbumId === options.foreignAlbumId
+    );
+
+    if (!album?.artist) {
+      throw new Error('Album not found in Lidarr metadata');
+    }
+
+    const response = await this.axios.post<LidarrAlbum>('/album', {
+      ...album,
+      monitored: true,
+      artist: {
+        ...album.artist,
+        qualityProfileId: options.qualityProfileId,
+        metadataProfileId: options.metadataProfileId,
+        rootFolderPath: options.rootFolderPath,
+        tags: options.tags,
+        monitored: true,
+        monitorNewItems: 'none',
+        addOptions: { monitor: 'none', searchForMissingAlbums: false },
+      },
+      addOptions: { searchForNewAlbum: options.searchNow },
+    });
+
+    logger.info('Lidarr accepted album request', {
+      label: 'Lidarr',
+      albumId: response.data.id,
+      albumTitle: response.data.title,
+    });
+
+    return response.data;
+  }
+
   public async getArtistByForeignArtistId(
     foreignArtistId: string
   ): Promise<LidarrArtist> {
