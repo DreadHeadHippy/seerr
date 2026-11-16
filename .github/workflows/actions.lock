@@ -46,6 +46,12 @@ workflows:
         - 'actions/checkout@v7.0.1'
         - 'actions/upload-artifact@v7.0.1'
         - 'lycheeverse/lychee-action@v2.9.0'
+    '.github/workflows/fork-image.yml':
+        - 'actions/checkout@v7.0.1'
+        - 'docker/build-push-action@v7.3.0'
+        - 'docker/login-action@v4.6.0'
+        - 'docker/metadata-action@v6.2.0'
+        - 'docker/setup-buildx-action@v4.3.0'
     '.github/workflows/helm.yml':
         - 'actions/checkout@v7.0.1'
         - 'actions/download-artifact@v8.0.1'
