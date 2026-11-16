@@ -12,6 +12,7 @@ import {
   MUSIC_SLIDER_SIZE,
   createDiscoveryContext,
   createLidarrClient,
+  fillMissingArtwork,
   getDefaultLidarr,
   getRecentlyAddedArtists,
   getSimilarToLibraryArtists,
@@ -66,7 +67,9 @@ const discoverHandler =
         req
       );
 
-      return res.status(200).json({ results } as MusicSearchResponse);
+      return res
+        .status(200)
+        .json({ results: await fillMissingArtwork(results) });
     } catch (e) {
       logger.error('Failed to load music discovery results', {
         label: 'Music Discovery',
@@ -145,8 +148,10 @@ musicRoutes.get<never, MusicSearchResponse, never, { query?: string }>(
       );
 
       return res.status(200).json({
-        results: artists.map((artist) =>
-          mapArtist(artist, lidarrSettings, showLidarrUrl)
+        results: await fillMissingArtwork(
+          artists.map((artist) =>
+            mapArtist(artist, lidarrSettings, showLidarrUrl)
+          )
         ),
       });
     } catch (e) {

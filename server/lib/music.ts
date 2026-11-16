@@ -1,3 +1,4 @@
+import DeezerAPI from '@server/api/deezer';
 import type LastfmAPI from '@server/api/lastfm';
 import type { LastfmArtist } from '@server/api/lastfm';
 import type {
@@ -94,6 +95,36 @@ const mapWithConcurrency = async <T, R>(
   );
 
   return results;
+};
+
+/**
+ * Lidarr's metadata has no poster for some artists. Fill those in from Deezer,
+ * falling back to Lidarr's fanart, so cards are not left blank.
+ */
+export const fillMissingArtwork = async (
+  results: MusicArtistResult[]
+): Promise<MusicArtistResult[]> => {
+  const deezer = new DeezerAPI();
+
+  return mapWithConcurrency(results, LOOKUP_CONCURRENCY, async (artist) => {
+    if (artist.posterUrl) {
+      return artist;
+    }
+
+    let posterUrl: string | undefined;
+
+    try {
+      posterUrl = await deezer.getArtistImage(artist.artistName);
+    } catch (e) {
+      logger.debug('Unable to get artist image from Deezer', {
+        label: 'Music Discovery',
+        artist: artist.artistName,
+        errorMessage: e.message,
+      });
+    }
+
+    return { ...artist, posterUrl: posterUrl ?? artist.fanartUrl };
+  });
 };
 
 interface DiscoveryContext {

@@ -38,6 +38,8 @@ const ArtistCard = ({
   const [artist, setArtist] = useState(initialArtist);
   const [showDetail, setShowDetail] = useState(false);
   const [showRequestModal, setShowRequestModal] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
+  const posterUrl = imageFailed ? undefined : artist.posterUrl;
 
   const showRequestButton = hasPermission(
     [Permission.REQUEST, Permission.REQUEST_MUSIC],
@@ -99,9 +101,8 @@ const ArtistCard = ({
             type="music"
             className="absolute inset-0 h-full w-full"
             alt=""
-            src={
-              artist.posterUrl ?? '/images/seerr_poster_not_found_logo_top.png'
-            }
+            src={posterUrl ?? '/images/seerr_poster_not_found_logo_top.png'}
+            onError={() => setImageFailed(true)}
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             fill
           />
@@ -122,7 +123,7 @@ const ArtistCard = ({
 
           <Transition
             as={Fragment}
-            show={!artist.posterUrl || showDetail || showRequestModal}
+            show={!posterUrl || showDetail || showRequestModal}
             enter="transition-opacity"
             enterFrom="opacity-0"
             enterTo="opacity-100"

@@ -12,7 +12,8 @@ export type AvailableCacheIds =
   | 'plexwatchlist'
   | 'tvdb'
   | 'lidarr'
-  | 'lastfm';
+  | 'lastfm'
+  | 'deezer';
 
 const DEFAULT_TTL = 300;
 
@@ -36,6 +37,9 @@ const LIDARR_MAX_KEYS = 1000;
 
 // Chart, tag and similar-artist pages from Last.fm, a few hundred at most.
 const LASTFM_MAX_KEYS = 500;
+
+// One key per artist name that needed a fallback photo.
+const DEEZER_MAX_KEYS = 2000;
 
 // One key per searched title, each holding twenty search hits.
 const RT_MAX_KEYS = 500;
@@ -239,6 +243,10 @@ class CacheManager {
     lastfm: new Cache('lastfm', 'Last.fm API', {
       stdTtl: 21600,
       max: LASTFM_MAX_KEYS,
+    }),
+    deezer: new Cache('deezer', 'Deezer API', {
+      stdTtl: 604800,
+      max: DEEZER_MAX_KEYS,
     }),
     rt: new Cache('rt', 'Rotten Tomatoes API', {
       stdTtl: 43200,
