@@ -267,6 +267,10 @@ components:
         newPlexLogin:
           type: boolean
           example: true
+        syncPlexLibraryPermissions:
+          type: boolean
+          example: false
+          description: Set request permissions (movies, series, music) from each Plex user's shared libraries.
         defaultPermissions:
           type: number
           example: 32

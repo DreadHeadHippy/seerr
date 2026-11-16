@@ -7,6 +7,7 @@ import { getRepository } from '@server/datasource';
 import { User } from '@server/entity/User';
 import { startJobs } from '@server/job/schedule';
 import { Permission } from '@server/lib/permissions';
+import { syncPlexRequestPermissions } from '@server/lib/plexPermissionSync';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import { isAuthenticated } from '@server/middleware/auth';
@@ -227,6 +228,12 @@ authRoutes.post('/plex', async (req, res, next) => {
         await settings.save();
         startJobs();
       }
+    }
+
+    // Keep request permissions in line with the user's Plex library access,
+    // so newly invited users have the right permissions on first sign-in.
+    if (user) {
+      await syncPlexRequestPermissions(user);
     }
 
     // Set logged in session

@@ -3,6 +3,7 @@ import blocklistedTagsProcessor from '@server/job/blocklistedTagsProcessor';
 import availabilitySync from '@server/lib/availabilitySync';
 import downloadTracker from '@server/lib/downloadtracker';
 import ImageProxy from '@server/lib/imageproxy';
+import { syncPlexRequestPermissions } from '@server/lib/plexPermissionSync';
 import refreshToken from '@server/lib/refreshToken';
 import {
   jellyfinFullScanner,
@@ -107,6 +108,24 @@ export const startJobs = (): void => {
             errorMessage: e.message,
           });
         });
+      }),
+    });
+
+    // Sync request permissions from Plex library access (when enabled)
+    scheduledJobs.push({
+      id: 'plex-permission-sync',
+      name: 'Plex Library Permission Sync',
+      type: 'process',
+      interval: 'hours',
+      cronSchedule: jobs['plex-permission-sync'].schedule,
+      job: schedule.scheduleJob(jobs['plex-permission-sync'].schedule, () => {
+        if (!getSettings().main.syncPlexLibraryPermissions) {
+          return;
+        }
+        logger.info('Starting scheduled job: Plex Library Permission Sync', {
+          label: 'Jobs',
+        });
+        syncPlexRequestPermissions();
       }),
     });
   } else if (

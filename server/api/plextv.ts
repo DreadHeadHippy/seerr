@@ -309,6 +309,52 @@ class PlexTvAPI extends ExternalAPI {
     }
   }
 
+  /**
+   * Returns the library types (movie, show, artist, photo) each user has been
+   * shared on the given server, keyed by Plex user id. These are the same
+   * library shares that tools like Wizarr manage.
+   */
+  public async getSharedLibraryTypes(
+    machineId: string
+  ): Promise<Map<number, Set<string>>> {
+    const response = await this.axios.get(
+      `/api/servers/${machineId}/shared_servers`,
+      { transformResponse: [], responseType: 'text' }
+    );
+
+    const parsed = (await xml2js.parseStringPromise(response.data)) as {
+      MediaContainer?: {
+        SharedServer?: {
+          $: { userID?: string; allLibraries?: string };
+          Section?: { $: { type?: string; shared?: string } }[];
+        }[];
+      };
+    };
+
+    const result = new Map<number, Set<string>>();
+
+    for (const share of parsed.MediaContainer?.SharedServer ?? []) {
+      const userId = Number(share.$.userID);
+
+      if (!userId) {
+        continue;
+      }
+
+      const allLibraries = share.$.allLibraries === '1';
+      const types = new Set<string>();
+
+      for (const section of share.Section ?? []) {
+        if (section.$.type && (allLibraries || section.$.shared === '1')) {
+          types.add(section.$.type);
+        }
+      }
+
+      result.set(userId, types);
+    }
+
+    return result;
+  }
+
   public async getUsers(): Promise<UsersResponse> {
     const response = await this.axios.get('/api/users', {
       transformResponse: [],

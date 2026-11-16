@@ -20,6 +20,7 @@ import type { AvailableCacheIds } from '@server/lib/cache';
 import cacheManager from '@server/lib/cache';
 import ImageProxy from '@server/lib/imageproxy';
 import { Permission } from '@server/lib/permissions';
+import { syncPlexRequestPermissions } from '@server/lib/plexPermissionSync';
 import { jellyfinFullScanner } from '@server/lib/scanners/jellyfin';
 import { plexFullScanner } from '@server/lib/scanners/plex';
 import type { JobId, Library, MainSettings } from '@server/lib/settings';
@@ -85,8 +86,15 @@ settingsRoutes.get('/main', (req, res, next) => {
 settingsRoutes.post('/main', async (req, res) => {
   const settings = getSettings();
 
+  const wasSyncingPermissions = settings.main.syncPlexLibraryPermissions;
+
   settings.main = merge(settings.main, req.body);
   await settings.save();
+
+  // Apply Plex library permissions right away when the sync is switched on.
+  if (!wasSyncingPermissions && settings.main.syncPlexLibraryPermissions) {
+    syncPlexRequestPermissions();
+  }
 
   return res.status(200).json(settings.main);
 });

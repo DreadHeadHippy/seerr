@@ -36,6 +36,9 @@ const messages = defineMessages('components.Settings.SettingsUsers', {
   newPlexLogin: 'Enable New {mediaServerName} Sign-In',
   newPlexLoginTip:
     'Allow {mediaServerName} users to sign in without first being imported',
+  syncPlexLibraryPermissions: 'Sync Request Permissions from Plex Libraries',
+  syncPlexLibraryPermissionsTip:
+    'Automatically grant Request Movies, Request Series and Request Music based on the libraries shared with each Plex user (for example by Wizarr). Checked on sign-in and hourly; admins are never changed.',
   movieRequestLimitLabel: 'Global Movie Request Limit',
   tvRequestLimitLabel: 'Global Series Request Limit',
   defaultPermissions: 'Default Permissions',
@@ -110,6 +113,7 @@ const SettingsUsers = () => {
             localLogin: data?.localLogin,
             mediaServerLogin: data?.mediaServerLogin,
             newPlexLogin: data?.newPlexLogin,
+            syncPlexLibraryPermissions: data?.syncPlexLibraryPermissions,
             movieQuotaLimit: data?.defaultQuotas.movie.quotaLimit ?? 0,
             movieQuotaDays: data?.defaultQuotas.movie.quotaDays ?? 7,
             tvQuotaLimit: data?.defaultQuotas.tv.quotaLimit ?? 0,
@@ -124,6 +128,7 @@ const SettingsUsers = () => {
                 localLogin: values.localLogin,
                 mediaServerLogin: values.mediaServerLogin,
                 newPlexLogin: values.newPlexLogin,
+                syncPlexLibraryPermissions: values.syncPlexLibraryPermissions,
                 defaultQuotas: {
                   movie: {
                     quotaLimit: values.movieQuotaLimit,
@@ -246,6 +251,35 @@ const SettingsUsers = () => {
                     />
                   </div>
                 </div>
+                {settings.currentSettings.mediaServerType ===
+                  MediaServerType.PLEX && (
+                  <div className="form-row">
+                    <label
+                      htmlFor="syncPlexLibraryPermissions"
+                      className="checkbox-label"
+                    >
+                      {intl.formatMessage(messages.syncPlexLibraryPermissions)}
+                      <span className="label-tip">
+                        {intl.formatMessage(
+                          messages.syncPlexLibraryPermissionsTip
+                        )}
+                      </span>
+                    </label>
+                    <div className="form-input-area">
+                      <Field
+                        type="checkbox"
+                        id="syncPlexLibraryPermissions"
+                        name="syncPlexLibraryPermissions"
+                        onChange={() => {
+                          setFieldValue(
+                            'syncPlexLibraryPermissions',
+                            !values.syncPlexLibraryPermissions
+                          );
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
                 <div className="form-row">
                   <label htmlFor="applicationTitle" className="text-label">
                     {intl.formatMessage(messages.movieRequestLimitLabel)}

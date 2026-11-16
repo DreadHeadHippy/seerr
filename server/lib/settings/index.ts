@@ -154,6 +154,7 @@ export interface MainSettings {
   localLogin: boolean;
   mediaServerLogin: boolean;
   newPlexLogin: boolean;
+  syncPlexLibraryPermissions: boolean;
   discoverRegion: string;
   streamingRegion: string;
   originalLanguage: string;
@@ -383,7 +384,8 @@ export type JobId =
   | 'jellyfin-full-scan'
   | 'image-cache-cleanup'
   | 'availability-sync'
-  | 'process-blocklisted-tags';
+  | 'process-blocklisted-tags'
+  | 'plex-permission-sync';
 
 export interface AllSettings {
   clientId: string;
@@ -436,6 +438,7 @@ class Settings {
         localLogin: true,
         mediaServerLogin: true,
         newPlexLogin: true,
+        syncPlexLibraryPermissions: false,
         discoverRegion: '',
         streamingRegion: '',
         originalLanguage: '',
@@ -598,6 +601,9 @@ class Settings {
         },
         'plex-watchlist-sync': {
           schedule: '0 */3 * * * *',
+        },
+        'plex-permission-sync': {
+          schedule: '0 15 * * * *',
         },
         'plex-refresh-token': {
           schedule: '0 0 5 * * *',
