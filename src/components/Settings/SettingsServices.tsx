@@ -7,6 +7,7 @@ import Button from '@app/components/Common/Button';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import Modal from '@app/components/Common/Modal';
 import PageTitle from '@app/components/Common/PageTitle';
+import LastfmSettings from '@app/components/Settings/LastfmSettings';
 import LidarrModal from '@app/components/Settings/LidarrModal';
 import OverrideRuleModal from '@app/components/Settings/OverrideRule/OverrideRuleModal';
 import OverrideRuleTiles from '@app/components/Settings/OverrideRule/OverrideRuleTiles';
@@ -611,6 +612,7 @@ const SettingsServices = () => {
           </>
         )}
       </div>
+      <LastfmSettings />
       <div className="mb-6 mt-10">
         <h3 className="heading">
           {intl.formatMessage(messages.overrideRules)}

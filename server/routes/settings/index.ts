@@ -1,5 +1,6 @@
 import type { JellyfinLibrary } from '@server/api/jellyfin';
 import JellyfinAPI from '@server/api/jellyfin';
+import LastfmAPI from '@server/api/lastfm';
 import PlexAPI from '@server/api/plexapi';
 import PlexTvAPI from '@server/api/plextv';
 import TautulliAPI from '@server/api/tautulli';
@@ -531,6 +532,41 @@ settingsRoutes.post('/tautulli', async (req, res, next) => {
   }
 
   return res.status(200).json(settings.tautulli);
+});
+
+settingsRoutes.get('/lastfm', (_req, res) => {
+  const settings = getSettings();
+
+  res.status(200).json(settings.lastfm);
+});
+
+settingsRoutes.post('/lastfm', async (req, res, next) => {
+  const settings = getSettings();
+  const apiKey = (req.body.apiKey ?? '').toString().trim();
+
+  if (apiKey) {
+    try {
+      await new LastfmAPI(apiKey).testApiKey();
+    } catch (e) {
+      logger.error('Something went wrong testing the Last.fm API key', {
+        label: 'API',
+        errorMessage: e.message,
+      });
+      return next({
+        status: 500,
+        message: 'Unable to connect to Last.fm. Check the API key.',
+      });
+    }
+  }
+
+  if (apiKey !== (settings.lastfm.apiKey ?? '')) {
+    cacheManager.getCache('lastfm').flush();
+  }
+
+  settings.lastfm = { apiKey: apiKey || undefined };
+  await settings.save();
+
+  return res.status(200).json(settings.lastfm);
 });
 
 settingsRoutes.get(

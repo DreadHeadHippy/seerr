@@ -37,6 +37,7 @@ export interface PublicSettingsResponse {
   movie4kEnabled: boolean;
   series4kEnabled: boolean;
   musicEnabled: boolean;
+  musicDiscoveryEnabled: boolean;
   discoverRegion: string;
   streamingRegion: string;
   originalLanguage: string;

@@ -555,6 +555,12 @@ components:
               type: string
               enum: [tvdb, tmdb]
               example: 'tvdb'
+    LastfmSettings:
+      type: object
+      properties:
+        apiKey:
+          type: string
+          example: 'abc123'
     TautulliSettings:
       type: object
       properties:
@@ -2870,6 +2876,37 @@ paths:
                   message:
                     type: string
                     example: 'Successfully connected to TVDB'
+  /settings/lastfm:
+    get:
+      summary: Get Last.fm settings
+      description: Retrieves the Last.fm API key used for music discovery.
+      tags:
+        - settings
+      responses:
+        '200':
+          description: 'Values were successfully retrieved'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LastfmSettings'
+    post:
+      summary: Update Last.fm settings
+      description: Validates and saves the Last.fm API key. An empty key disables Last.fm music discovery.
+      tags:
+        - settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LastfmSettings'
+      responses:
+        '200':
+          description: 'Values were successfully updated'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LastfmSettings'
   /settings/tautulli:
     get:
       summary: Get Tautulli settings
@@ -7875,6 +7912,85 @@ paths:
       responses:
         '200':
           description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MusicArtistResult'
+  /music/discover/recent:
+    get:
+      summary: Recently added artists
+      description: Returns the artists most recently added to the default Lidarr server.
+      tags:
+        - music
+      responses:
+        '200':
+          description: Artists
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MusicArtistResult'
+  /music/discover/similar:
+    get:
+      summary: Artists similar to your library
+      description: Returns Last.fm artists similar to the most recently added Lidarr artists, excluding artists already in Lidarr. Requires a Last.fm API key.
+      tags:
+        - music
+      responses:
+        '200':
+          description: Artists
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MusicArtistResult'
+  /music/discover/top:
+    get:
+      summary: Top artists
+      description: Returns Last.fm's chart of top artists. Requires a Last.fm API key.
+      tags:
+        - music
+      responses:
+        '200':
+          description: Artists
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MusicArtistResult'
+  /music/discover/genre/{genre}:
+    get:
+      summary: Top artists for a genre
+      description: Returns Last.fm's top artists for a genre tag. Requires a Last.fm API key.
+      tags:
+        - music
+      parameters:
+        - in: path
+          name: genre
+          required: true
+          schema:
+            type: string
+            example: rock
+      responses:
+        '200':
+          description: Artists
           content:
             application/json:
               schema:

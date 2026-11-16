@@ -1,8 +1,5 @@
-import type {
-  LidarrArtist,
-  LidarrImageWithRemote,
-} from '@server/api/servarr/lidarr';
-import LidarrAPI, {
+import LastfmAPI from '@server/api/lastfm';
+import {
   LIDARR_MONITOR_NEW_ITEMS_OPTIONS,
   LIDARR_MONITOR_OPTIONS,
 } from '@server/api/servarr/lidarr';
@@ -11,63 +8,115 @@ import type {
   MusicArtistResult,
   MusicSearchResponse,
 } from '@server/interfaces/api/musicInterfaces';
+import {
+  MUSIC_SLIDER_SIZE,
+  createDiscoveryContext,
+  createLidarrClient,
+  getDefaultLidarr,
+  getRecentlyAddedArtists,
+  getSimilarToLibraryArtists,
+  mapArtist,
+  resolveLastfmArtists,
+} from '@server/lib/music';
 import { Permission } from '@server/lib/permissions';
-import type { LidarrSettings } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import { sanitizeDisplayName } from '@server/subscriber/MediaRequestSubscriber';
+import type { NextFunction, Request, Response } from 'express';
 import { Router } from 'express';
 
 const musicRoutes = Router();
 
-const getDefaultLidarr = (): LidarrSettings | undefined => {
-  const { lidarr } = getSettings();
+type DiscoverSource = (
+  context: Awaited<ReturnType<typeof createDiscoveryContext>>,
+  lastfm: LastfmAPI | undefined,
+  req: Request
+) => Promise<MusicArtistResult[]> | MusicArtistResult[];
 
-  return lidarr.find((server) => server.isDefault) ?? lidarr[0];
-};
+/**
+ * Shared handler for the Music page sliders. Every slider needs Lidarr (for
+ * artwork and library status); sources that use Last.fm also need its key.
+ */
+const discoverHandler =
+  (source: DiscoverSource, requiresLastfm: boolean) =>
+  async (req: Request, res: Response, next: NextFunction) => {
+    const lidarrSettings = getDefaultLidarr();
 
-const getImageUrl = (
-  images: LidarrImageWithRemote[],
-  coverType: string
-): string | undefined => {
-  const image = images.find((i) => i.coverType === coverType);
+    if (!lidarrSettings) {
+      return next({ status: 404, message: 'No Lidarr server is configured.' });
+    }
 
-  if (!image) {
-    return undefined;
-  }
+    const lastfmKey = getSettings().lastfm?.apiKey;
 
-  if (image.remoteUrl) {
-    return image.remoteUrl;
-  }
+    if (requiresLastfm && !lastfmKey) {
+      return next({
+        status: 404,
+        message: 'No Last.fm API key is configured.',
+      });
+    }
 
-  // Lookup results for artists not yet in Lidarr only carry an absolute url.
-  return image.url?.startsWith('http') ? image.url : undefined;
-};
+    try {
+      const context = await createDiscoveryContext(
+        lidarrSettings,
+        !!req.user?.hasPermission(Permission.MANAGE_REQUESTS)
+      );
+      const results = await source(
+        context,
+        lastfmKey ? new LastfmAPI(lastfmKey) : undefined,
+        req
+      );
 
-const mapArtist = (
-  artist: LidarrArtist,
-  lidarrSettings: LidarrSettings,
-  showLidarrUrl: boolean
-): MusicArtistResult => ({
-  foreignArtistId: artist.foreignArtistId,
-  artistName: artist.artistName,
-  disambiguation: artist.disambiguation || undefined,
-  overview: artist.overview,
-  artistType: artist.artistType,
-  genres: artist.genres ?? [],
-  posterUrl: getImageUrl(artist.images ?? [], 'poster'),
-  fanartUrl: getImageUrl(artist.images ?? [], 'fanart'),
-  inLidarr: !!artist.id,
-  monitored: !!artist.id && !!artist.monitored,
-  albumCount: artist.statistics?.albumCount,
-  trackFileCount: artist.statistics?.trackFileCount,
-  lidarrUrl:
-    showLidarrUrl && artist.id
-      ? `${(
-          lidarrSettings.externalUrl || LidarrAPI.buildUrl(lidarrSettings)
-        ).replace(/\/$/, '')}/artist/${artist.foreignArtistId}`
-      : undefined,
-});
+      return res.status(200).json({ results } as MusicSearchResponse);
+    } catch (e) {
+      logger.error('Failed to load music discovery results', {
+        label: 'Music Discovery',
+        path: req.path,
+        errorMessage: e.message,
+      });
+
+      return next({
+        status: 500,
+        message: 'Unable to load music recommendations.',
+      });
+    }
+  };
+
+musicRoutes.get(
+  '/discover/recent',
+  discoverHandler((context) => getRecentlyAddedArtists(context), false)
+);
+
+musicRoutes.get(
+  '/discover/similar',
+  discoverHandler(
+    (context, lastfm) =>
+      getSimilarToLibraryArtists(context, lastfm as LastfmAPI),
+    true
+  )
+);
+
+musicRoutes.get(
+  '/discover/top',
+  discoverHandler(async (context, lastfm) => {
+    const artists = await (lastfm as LastfmAPI).getTopArtists({
+      limit: MUSIC_SLIDER_SIZE,
+    });
+
+    return resolveLastfmArtists(context, artists);
+  }, true)
+);
+
+musicRoutes.get(
+  '/discover/genre/:genre',
+  discoverHandler(async (context, lastfm, req) => {
+    const artists = await (lastfm as LastfmAPI).getTopArtistsByTag({
+      tag: String(req.params.genre),
+      limit: MUSIC_SLIDER_SIZE,
+    });
+
+    return resolveLastfmArtists(context, artists);
+  }, true)
+);
 
 musicRoutes.get<never, MusicSearchResponse, never, { query?: string }>(
   '/search',
@@ -87,10 +136,7 @@ musicRoutes.get<never, MusicSearchResponse, never, { query?: string }>(
       });
     }
 
-    const lidarr = new LidarrAPI({
-      apiKey: lidarrSettings.apiKey,
-      url: LidarrAPI.buildUrl(lidarrSettings, '/api/v1'),
-    });
+    const lidarr = createLidarrClient(lidarrSettings);
 
     try {
       const artists = await lidarr.searchArtists(query);
@@ -169,10 +215,7 @@ musicRoutes.post<never, MusicArtistResult, MusicArtistAddBody>(
       });
     }
 
-    const lidarr = new LidarrAPI({
-      apiKey: lidarrSettings.apiKey,
-      url: LidarrAPI.buildUrl(lidarrSettings, '/api/v1'),
-    });
+    const lidarr = createLidarrClient(lidarrSettings);
 
     try {
       const tags = [

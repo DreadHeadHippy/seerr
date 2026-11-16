@@ -20,6 +20,7 @@ const defaultSettings = {
   movie4kEnabled: false,
   series4kEnabled: false,
   musicEnabled: false,
+  musicDiscoveryEnabled: false,
   discoverRegion: '',
   streamingRegion: '',
   originalLanguage: '',

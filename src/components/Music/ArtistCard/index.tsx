@@ -25,9 +25,13 @@ const messages = defineMessages('components.Music.ArtistCard', {
 
 interface ArtistCardProps {
   artist: MusicArtistResult;
+  canExpand?: boolean;
 }
 
-const ArtistCard = ({ artist: initialArtist }: ArtistCardProps) => {
+const ArtistCard = ({
+  artist: initialArtist,
+  canExpand = false,
+}: ArtistCardProps) => {
   const intl = useIntl();
   const isTouch = useIsTouch();
   const { hasPermission } = useUser();
@@ -56,7 +60,7 @@ const ArtistCard = ({ artist: initialArtist }: ArtistCardProps) => {
     .join(' · ');
 
   return (
-    <div className="w-full">
+    <div className={canExpand ? 'w-full' : 'w-36 sm:w-36 md:w-44'}>
       <ArtistRequestModal
         show={showRequestModal}
         artist={artist}

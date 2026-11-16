@@ -116,6 +116,7 @@ export interface LidarrArtist {
   metadataProfileId?: number;
   rootFolderPath?: string;
   tags?: number[];
+  added?: string;
   statistics?: {
     albumCount: number;
     trackFileCount: number;
@@ -337,6 +338,33 @@ class LidarrAPI extends ServarrBase<{ albumId: number }> {
         term,
       });
       throw new Error('Failed to search artists', { cause: e });
+    }
+  }
+
+  /**
+   * Cached artist lookup used to resolve discovery results (artwork and
+   * metadata). Library membership must come from getLibraryArtists, as this
+   * may be up to a day old.
+   */
+  public async lookupArtistsCached(term: string): Promise<LidarrArtist[]> {
+    return this.get<LidarrArtist[]>(
+      '/artist/lookup',
+      { params: { term } },
+      86400
+    );
+  }
+
+  /**
+   * Every artist in the Lidarr library, cached briefly so the discovery
+   * sliders on the Music page share one request.
+   */
+  public async getLibraryArtists(): Promise<LidarrArtist[]> {
+    try {
+      return await this.get<LidarrArtist[]>('/artist', undefined, 60);
+    } catch (e) {
+      throw new Error(`[Lidarr] Failed to retrieve artists: ${e.message}`, {
+        cause: e,
+      });
     }
   }
 

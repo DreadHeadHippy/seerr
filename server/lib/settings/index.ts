@@ -65,6 +65,10 @@ export interface TautulliSettings {
   externalUrl?: string;
 }
 
+export interface LastfmSettings {
+  apiKey?: string;
+}
+
 export interface DVRSettings {
   id: number;
   name: string;
@@ -206,6 +210,7 @@ interface FullPublicSettings extends PublicSettings {
   movie4kEnabled: boolean;
   series4kEnabled: boolean;
   musicEnabled: boolean;
+  musicDiscoveryEnabled: boolean;
   discoverRegion: string;
   streamingRegion: string;
   originalLanguage: string;
@@ -389,6 +394,7 @@ export interface AllSettings {
   plex: PlexSettings;
   jellyfin: JellyfinSettings;
   tautulli: TautulliSettings;
+  lastfm: LastfmSettings;
   radarr: RadarrSettings[];
   sonarr: SonarrSettings[];
   lidarr: LidarrSettings[];
@@ -464,6 +470,7 @@ class Settings {
         apiKey: '',
       },
       tautulli: {},
+      lastfm: {},
       metadataSettings: {
         tv: MetadataProviderType.TMDB,
         anime: MetadataProviderType.TMDB,
@@ -675,6 +682,14 @@ class Settings {
     this.data.jellyfin = mergeSettings(this.data.jellyfin, data);
   }
 
+  get lastfm(): LastfmSettings {
+    return this.data.lastfm;
+  }
+
+  set lastfm(data: LastfmSettings) {
+    this.data.lastfm = mergeSettings(this.data.lastfm, data);
+  }
+
   get tautulli(): TautulliSettings {
     return this.data.tautulli;
   }
@@ -745,6 +760,8 @@ class Settings {
         (sonarr) => sonarr.is4k && sonarr.isDefault
       ),
       musicEnabled: this.data.lidarr.length > 0,
+      musicDiscoveryEnabled:
+        this.data.lidarr.length > 0 && !!this.data.lastfm?.apiKey,
       discoverRegion: this.data.main.discoverRegion,
       streamingRegion: this.data.main.streamingRegion,
       originalLanguage: this.data.main.originalLanguage,

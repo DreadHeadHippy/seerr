@@ -11,7 +11,8 @@ export type AvailableCacheIds =
   | 'plextv'
   | 'plexwatchlist'
   | 'tvdb'
-  | 'lidarr';
+  | 'lidarr'
+  | 'lastfm';
 
 const DEFAULT_TTL = 300;
 
@@ -29,7 +30,12 @@ const TMDB_SCAN_MAX_KEYS = 2000;
 // these tiers, and keys are prefixed by server url, so this is a few keys per server.
 const RADARR_MAX_KEYS = 64;
 const SONARR_MAX_KEYS = 64;
-const LIDARR_MAX_KEYS = 64;
+// Besides the profile lookups above, Lidarr also caches one artist lookup per
+// artist shown on the Music page's discovery sliders.
+const LIDARR_MAX_KEYS = 1000;
+
+// Chart, tag and similar-artist pages from Last.fm, a few hundred at most.
+const LASTFM_MAX_KEYS = 500;
 
 // One key per searched title, each holding twenty search hits.
 const RT_MAX_KEYS = 500;
@@ -230,6 +236,10 @@ class CacheManager {
     radarr: new Cache('radarr', 'Radarr API', { max: RADARR_MAX_KEYS }),
     sonarr: new Cache('sonarr', 'Sonarr API', { max: SONARR_MAX_KEYS }),
     lidarr: new Cache('lidarr', 'Lidarr API', { max: LIDARR_MAX_KEYS }),
+    lastfm: new Cache('lastfm', 'Last.fm API', {
+      stdTtl: 21600,
+      max: LASTFM_MAX_KEYS,
+    }),
     rt: new Cache('rt', 'Rotten Tomatoes API', {
       stdTtl: 43200,
       max: RT_MAX_KEYS,
