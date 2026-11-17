@@ -71,6 +71,49 @@ export const mediaRefreshInterval = (
     : 0;
 };
 
+/** How often a title card re-checks a download it's showing progress for. */
+export const CARD_DOWNLOAD_INTERVAL = 10 * 1000;
+
+/** How often a card just requested from checks for its download starting. */
+export const CARD_REQUESTED_INTERVAL = 15 * 1000;
+
+/**
+ * Refresh interval for a title card on screen: fast while downloading (the
+ * server reads qBittorrent every 10 seconds) or just requested from the
+ * card, slow while processing or awaiting approval, off once available or
+ * never requested.
+ */
+export const cardRefreshInterval = (
+  media: { status?: MediaStatus; downloadStatus?: DownloadingItem[] },
+  requestedHere: boolean
+): number => {
+  if ((media.downloadStatus ?? []).length > 0) {
+    return CARD_DOWNLOAD_INTERVAL;
+  }
+
+  const status = media.status;
+
+  if (
+    status === MediaStatus.AVAILABLE ||
+    status === MediaStatus.BLOCKLISTED ||
+    status === MediaStatus.DELETED
+  ) {
+    return 0;
+  }
+
+  if (!requestedHere) {
+    return status === MediaStatus.PROCESSING
+      ? WAITING_FOR_DOWNLOAD_INTERVAL
+      : 0;
+  }
+
+  // Just requested from this card. Once approved the *arr usually grabs
+  // within seconds; approval itself can take a while.
+  return status === MediaStatus.PENDING
+    ? WAITING_FOR_DOWNLOAD_INTERVAL
+    : CARD_REQUESTED_INTERVAL;
+};
+
 /**
  * Refresh interval for a request card or row, from its latest data: fast
  * while downloading, slow while approved and waiting for a download to

@@ -2,6 +2,7 @@ import Spinner from '@app/assets/spinner.svg';
 import BlocklistModal from '@app/components/BlocklistModal';
 import Button from '@app/components/Common/Button';
 import CachedImage from '@app/components/Common/CachedImage';
+import DownloadRing from '@app/components/Common/DownloadRing';
 import StatusBadgeMini from '@app/components/Common/StatusBadgeMini';
 import Tooltip from '@app/components/Common/Tooltip';
 import RequestModal from '@app/components/RequestModal';
@@ -12,6 +13,7 @@ import useToasts from '@app/hooks/useToasts';
 import { Permission, UserType, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
+import { cardRefreshInterval } from '@app/utils/refreshIntervalHelper';
 import { withProperties } from '@app/utils/typeHelpers';
 import { Transition } from '@headlessui/react';
 import {
@@ -23,12 +25,16 @@ import {
 } from '@heroicons/react/24/outline';
 import { MediaStatus } from '@server/constants/media';
 import type { Watchlist } from '@server/entity/Watchlist';
+import type { DownloadingItem } from '@server/lib/downloadtracker';
+import type { MovieDetails } from '@server/models/Movie';
 import type { MediaType } from '@server/models/Search';
+import type { TvDetails } from '@server/models/Tv';
 import axios from 'axios';
 import Link from 'next/link';
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import { useInView } from 'react-intersection-observer';
 import { useIntl } from 'react-intl';
-import { mutate } from 'swr';
+import useSWR, { mutate } from 'swr';
 
 interface TitleCardProps {
   id: number;
@@ -41,6 +47,8 @@ interface TitleCardProps {
   status?: MediaStatus;
   canExpand?: boolean;
   inProgress?: boolean;
+  /** The media's download progress, for the ring on the status badge. */
+  downloads?: DownloadingItem[];
   isAddedToWatchlist?: number | boolean;
   mutateParent?: () => void;
 }
@@ -65,6 +73,7 @@ const TitleCard = ({
   mediaType,
   isAddedToWatchlist = false,
   inProgress = false,
+  downloads,
   canExpand = false,
   mutateParent,
 }: TitleCardProps) => {
@@ -80,6 +89,67 @@ const TitleCard = ({
     useState<boolean>(!isAddedToWatchlist);
   const [showBlocklistModal, setShowBlocklistModal] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
+  const { ref: inViewRef, inView } = useInView();
+  const setCardRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      cardRef.current = node;
+      inViewRef(node);
+    },
+    [inViewRef]
+  );
+  /** Requested from this card, so it follows the request to available. */
+  const [requestedHere, setRequestedHere] = useState(false);
+  /** The status changed while on screen: animate the new badge in. */
+  const [badgeChanged, setBadgeChanged] = useState(false);
+  /** A download was seen, so an empty queue now means it's importing. */
+  const [sawDownload, setSawDownload] = useState(false);
+
+  // While something is on its way, keep this card's progress current.
+  const following =
+    mediaType !== 'collection' &&
+    (requestedHere ||
+      currentStatus === MediaStatus.PROCESSING ||
+      (downloads ?? []).length > 0);
+  const { data: latest } = useSWR<MovieDetails | TvDetails>(
+    inView && following
+      ? `/api/v1/${mediaType === 'movie' ? 'movie' : 'tv'}/${id}`
+      : null,
+    {
+      refreshInterval: (data) =>
+        cardRefreshInterval(
+          data?.mediaInfo ?? {
+            status: currentStatus,
+            downloadStatus: downloads,
+          },
+          // Importing: Plex usually has it within a minute.
+          requestedHere || sawDownload
+        ),
+      revalidateOnFocus: false,
+    }
+  );
+  const latestStatus = latest?.mediaInfo?.status;
+  const activeDownloads = latest
+    ? (latest.mediaInfo?.downloadStatus ?? [])
+    : (downloads ?? []);
+  const importing =
+    sawDownload &&
+    activeDownloads.length === 0 &&
+    currentStatus === MediaStatus.PROCESSING;
+
+  useEffect(() => {
+    if (activeDownloads.length > 0) {
+      setSawDownload(true);
+    }
+  }, [activeDownloads.length]);
+
+  useEffect(() => {
+    if (latestStatus !== undefined && latestStatus !== currentStatus) {
+      setBadgeChanged(true);
+      setCurrentStatus(latestStatus);
+    }
+    // Only when the server's status changes, not when it's set locally.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latestStatus]);
 
   // Just to get the year from the date
   if (year) {
@@ -92,6 +162,7 @@ const TitleCard = ({
 
   const requestComplete = useCallback((newStatus: MediaStatus) => {
     setCurrentStatus(newStatus);
+    setRequestedHere(true);
     setShowRequestModal(false);
   }, []);
 
@@ -318,7 +389,7 @@ const TitleCard = ({
     <div
       className={canExpand ? 'w-full' : 'w-36 sm:w-36 md:w-44'}
       data-testid="title-card"
-      ref={cardRef}
+      ref={setCardRef}
     >
       <RequestModal
         tmdbId={id}
@@ -459,11 +530,32 @@ const TitleCard = ({
             {currentStatus && currentStatus !== MediaStatus.UNKNOWN && (
               <div className="flex flex-col items-center gap-1">
                 <div className="pointer-events-none z-40 flex">
-                  <StatusBadgeMini
-                    status={currentStatus}
-                    inProgress={inProgress}
-                    shrink
-                  />
+                  {(activeDownloads.length > 0 &&
+                    currentStatus !== MediaStatus.AVAILABLE) ||
+                  importing ? (
+                    <DownloadRing
+                      downloads={activeDownloads}
+                      complete={importing}
+                      shrink
+                    />
+                  ) : (
+                    <Transition
+                      key={currentStatus}
+                      appear={badgeChanged}
+                      show
+                      enter="transition duration-500 ease-out"
+                      enterFrom="scale-0 opacity-0"
+                      enterTo="scale-100 opacity-100"
+                    >
+                      <div className="flex">
+                        <StatusBadgeMini
+                          status={currentStatus}
+                          inProgress={inProgress && !latest && !downloads}
+                          shrink
+                        />
+                      </div>
+                    </Transition>
+                  )}
                 </div>
               </div>
             )}

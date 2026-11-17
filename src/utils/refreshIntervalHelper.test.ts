@@ -4,7 +4,10 @@ import type { DownloadingItem } from '@server/lib/downloadtracker';
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  CARD_DOWNLOAD_INTERVAL,
+  CARD_REQUESTED_INTERVAL,
   WAITING_FOR_DOWNLOAD_INTERVAL,
+  cardRefreshInterval,
   getRequestDownloadStatus,
   mediaRefreshInterval,
   requestRefreshInterval,
@@ -273,5 +276,49 @@ describe('requestRefreshInterval', () => {
         0
       );
     }
+  });
+});
+
+describe('cardRefreshInterval', () => {
+  it('polls fast while downloading', () => {
+    assert.equal(
+      cardRefreshInterval(
+        {
+          status: MediaStatus.PROCESSING,
+          downloadStatus: [createDownloadItem({ downloadId: 'a' })],
+        },
+        false
+      ),
+      CARD_DOWNLOAD_INTERVAL
+    );
+  });
+
+  it('polls soon after a request from the card, slowly while pending', () => {
+    assert.equal(
+      cardRefreshInterval({ status: MediaStatus.PROCESSING }, true),
+      CARD_REQUESTED_INTERVAL
+    );
+    assert.equal(
+      cardRefreshInterval({ status: MediaStatus.PENDING }, true),
+      WAITING_FOR_DOWNLOAD_INTERVAL
+    );
+  });
+
+  it('polls slowly for processing media it did not request', () => {
+    assert.equal(
+      cardRefreshInterval({ status: MediaStatus.PROCESSING }, false),
+      WAITING_FOR_DOWNLOAD_INTERVAL
+    );
+    assert.equal(
+      cardRefreshInterval({ status: MediaStatus.PENDING }, false),
+      0
+    );
+  });
+
+  it('stops once available', () => {
+    assert.equal(
+      cardRefreshInterval({ status: MediaStatus.AVAILABLE }, true),
+      0
+    );
   });
 });
