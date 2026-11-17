@@ -4,7 +4,7 @@ import type {
   LiveSnapshot,
 } from '@server/lib/downloadtracker';
 
-type Download = Pick<
+export type ProgressDownload = Pick<
   DownloadingItem,
   'size' | 'sizeLeft' | 'status' | 'estimatedCompletionTime'
 > & { downloadId?: string; episode?: { seasonNumber: number } };
@@ -27,7 +27,7 @@ export interface SeasonProgress {
 }
 
 /** The downloads with qBittorrent's latest numbers where it has them. */
-export const withLiveTorrents = <T extends Download>(
+export const withLiveTorrents = <T extends ProgressDownload>(
   downloads: T[],
   live: LiveSnapshot
 ): T[] =>
@@ -60,10 +60,10 @@ export interface TorrentProgress {
  * a season pack once per episode, each with the whole pack's numbers.
  */
 export const torrentProgress = (
-  downloads: Download[],
+  downloads: ProgressDownload[],
   now: number
 ): TorrentProgress => {
-  const torrents = new Map<string, Download>();
+  const torrents = new Map<string, ProgressDownload>();
 
   downloads.forEach((download, index) => {
     torrents.set(download.downloadId?.toLowerCase() || `#${index}`, download);
@@ -117,7 +117,7 @@ export const followedSeasons = (
     status: MediaRequestStatus;
     seasons: { seasonNumber: number }[];
   }[],
-  downloads: Download[]
+  downloads: ProgressDownload[]
 ): number[] => {
   const seasons = new Set<number>();
 
@@ -151,7 +151,7 @@ export const followedSeasons = (
 export const seasonProgress = (
   seasonNumbers: number[],
   seasonStatuses: { seasonNumber: number; status: MediaStatus }[],
-  downloads: Download[],
+  downloads: ProgressDownload[],
   seenDownloading: Set<number>,
   now: number
 ): SeasonProgress[] =>

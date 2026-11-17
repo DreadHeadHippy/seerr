@@ -1,5 +1,9 @@
+import {
+  withLiveTorrents,
+  type ProgressDownload,
+} from '@app/utils/seasonProgress';
 import type { LiveSnapshot } from '@server/lib/downloadtracker';
-import { useSyncExternalStore } from 'react';
+import { useMemo, useSyncExternalStore } from 'react';
 
 /*
  * One EventSource for the whole page, open while anything is showing a
@@ -54,3 +58,18 @@ export const useLiveTorrents = (enabled: boolean): LiveSnapshot =>
     () => (enabled ? snapshot : EMPTY),
     () => EMPTY
   );
+
+/**
+ * These downloads with qBittorrent's live numbers (size, size left, status,
+ * ETA) in place of the queue's, for anything that shows their progress.
+ */
+export const useLiveDownloads = <T extends ProgressDownload>(
+  downloads: T[] | undefined
+): T[] => {
+  const live = useLiveTorrents((downloads ?? []).length > 0);
+
+  return useMemo(
+    () => withLiveTorrents(downloads ?? [], live),
+    [downloads, live]
+  );
+};

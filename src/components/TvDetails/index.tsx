@@ -28,7 +28,7 @@ import Slider from '@app/components/Slider';
 import StatusBadge from '@app/components/StatusBadge';
 import Season from '@app/components/TvDetails/Season';
 import useDeepLinks from '@app/hooks/useDeepLinks';
-import { useLiveTorrents } from '@app/hooks/useLiveTorrents';
+import { useLiveDownloads, useLiveTorrents } from '@app/hooks/useLiveTorrents';
 import useLocale from '@app/hooks/useLocale';
 import useSettings from '@app/hooks/useSettings';
 import useToasts from '@app/hooks/useToasts';
@@ -167,6 +167,9 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
 
   // Per-season download progress, live from qBittorrent.
   const tvDownloads = data?.mediaInfo?.downloadStatus ?? [];
+  // qBittorrent's live numbers for the status badge and "Ready in".
+  const liveDownloads = useLiveDownloads(data?.mediaInfo?.downloadStatus);
+  const liveDownloads4k = useLiveDownloads(data?.mediaInfo?.downloadStatus4k);
   const liveTorrents = useLiveTorrents(tvDownloads.length > 0);
   /** Seasons a download was seen for: gone from the queue means importing. */
   const [seenSeasons, setSeenSeasons] = useState<Set<number>>(() => new Set());
@@ -624,7 +627,7 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
           <div className="media-status">
             <StatusBadge
               status={data.mediaInfo?.status}
-              downloadItem={data.mediaInfo?.downloadStatus}
+              downloadItem={liveDownloads}
               title={data.name}
               inProgress={(data.mediaInfo?.downloadStatus ?? []).length > 0}
               tmdbId={data.mediaInfo?.tmdbId}
@@ -632,10 +635,7 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
               plexUrl={plexUrl}
               serviceUrl={data.mediaInfo?.serviceUrl}
             />
-            <ReadyEta
-              downloads={data.mediaInfo?.downloadStatus}
-              className="self-center"
-            />
+            <ReadyEta downloads={liveDownloads} className="self-center" />
             {settings.currentSettings.series4kEnabled &&
               hasPermission(
                 [
@@ -650,7 +650,7 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
                 <>
                   <StatusBadge
                     status={data.mediaInfo?.status4k}
-                    downloadItem={data.mediaInfo?.downloadStatus4k}
+                    downloadItem={liveDownloads4k}
                     title={data.name}
                     is4k
                     inProgress={
@@ -662,7 +662,7 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
                     serviceUrl={data.mediaInfo?.serviceUrl4k}
                   />
                   <ReadyEta
-                    downloads={data.mediaInfo?.downloadStatus4k}
+                    downloads={liveDownloads4k}
                     className="self-center"
                   />
                 </>

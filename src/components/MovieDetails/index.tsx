@@ -24,6 +24,7 @@ import RequestButton from '@app/components/RequestButton';
 import Slider from '@app/components/Slider';
 import StatusBadge from '@app/components/StatusBadge';
 import useDeepLinks from '@app/hooks/useDeepLinks';
+import { useLiveDownloads } from '@app/hooks/useLiveTorrents';
 import useLocale from '@app/hooks/useLocale';
 import useSettings from '@app/hooks/useSettings';
 import useToasts from '@app/hooks/useToasts';
@@ -149,6 +150,10 @@ const MovieDetails = ({ movie }: MovieDetailsProps) => {
     refreshInterval: (latest) =>
       mediaRefreshInterval(latest?.mediaInfo, sawDownload, 15000),
   });
+
+  // qBittorrent's live numbers, same as the title cards' ring.
+  const liveDownloads = useLiveDownloads(data?.mediaInfo?.downloadStatus);
+  const liveDownloads4k = useLiveDownloads(data?.mediaInfo?.downloadStatus4k);
 
   const { data: ratingData } = useSWR<RatingResponse>(
     `/api/v1/movie/${router.query.movieId}/ratingscombined`
@@ -522,7 +527,7 @@ const MovieDetails = ({ movie }: MovieDetailsProps) => {
           <div className="media-status">
             <StatusBadge
               status={data.mediaInfo?.status}
-              downloadItem={data.mediaInfo?.downloadStatus}
+              downloadItem={liveDownloads}
               title={data.title}
               inProgress={(data.mediaInfo?.downloadStatus ?? []).length > 0}
               tmdbId={data.mediaInfo?.tmdbId}
@@ -530,10 +535,7 @@ const MovieDetails = ({ movie }: MovieDetailsProps) => {
               plexUrl={plexUrl}
               serviceUrl={data.mediaInfo?.serviceUrl}
             />
-            <ReadyEta
-              downloads={data.mediaInfo?.downloadStatus}
-              className="self-center"
-            />
+            <ReadyEta downloads={liveDownloads} className="self-center" />
             {settings.currentSettings.movie4kEnabled &&
               hasPermission(
                 [
@@ -548,7 +550,7 @@ const MovieDetails = ({ movie }: MovieDetailsProps) => {
                 <>
                   <StatusBadge
                     status={data.mediaInfo?.status4k}
-                    downloadItem={data.mediaInfo?.downloadStatus4k}
+                    downloadItem={liveDownloads4k}
                     title={data.title}
                     is4k
                     inProgress={
@@ -560,7 +562,7 @@ const MovieDetails = ({ movie }: MovieDetailsProps) => {
                     serviceUrl={data.mediaInfo?.serviceUrl4k}
                   />
                   <ReadyEta
-                    downloads={data.mediaInfo?.downloadStatus4k}
+                    downloads={liveDownloads4k}
                     className="self-center"
                   />
                 </>
