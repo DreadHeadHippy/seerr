@@ -245,6 +245,13 @@ export const getRecentlyAddedArtists = (
       mapArtist(artist, context.lidarrSettings, context.showLidarrUrl)
     );
 
+/**
+ * Similar artists are always fetched at this size and trimmed locally, so the
+ * rows that share a seed ("Recommended for You", "Because You Like" and
+ * "New This Week") share one cached Last.fm response.
+ */
+const SIMILAR_FETCH_SIZE = 50;
+
 /** Last.fm similar artists for a seed, by MusicBrainz id or else by name. */
 const getSimilarForSeed = async (
   lastfm: LastfmAPI,
@@ -252,15 +259,22 @@ const getSimilarForSeed = async (
   limit: number
 ): Promise<LastfmArtist[]> => {
   try {
-    return await lastfm.getSimilarArtists({
-      mbid: seed.foreignArtistId,
-      name: seed.artistName,
-      limit,
-    });
+    return (
+      await lastfm.getSimilarArtists({
+        mbid: seed.foreignArtistId,
+        name: seed.artistName,
+        limit: SIMILAR_FETCH_SIZE,
+      })
+    ).slice(0, limit);
   } catch {
     // Last.fm does not know every MusicBrainz id; fall back to the name.
     try {
-      return await lastfm.getSimilarArtists({ name: seed.artistName, limit });
+      return (
+        await lastfm.getSimilarArtists({
+          name: seed.artistName,
+          limit: SIMILAR_FETCH_SIZE,
+        })
+      ).slice(0, limit);
     } catch {
       return [];
     }
@@ -442,9 +456,13 @@ const mapAlbums = (
   mapWithConcurrency(releases, LOOKUP_CONCURRENCY, async (release) =>
     mapAlbum(
       release,
-      await context.lidarr
-        .getLibraryAlbum(release.releaseGroupMbid)
-        .catch(() => undefined),
+      // Adding an album also adds its artist, so a release can only be in
+      // Lidarr when one of its artists is; skip the lookup otherwise.
+      release.artistMbids.some((mbid) => context.library.has(mbid))
+        ? await context.lidarr
+            .getLibraryAlbum(release.releaseGroupMbid)
+            .catch(() => undefined)
+        : undefined,
       context
     )
   );

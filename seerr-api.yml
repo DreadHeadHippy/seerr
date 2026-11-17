@@ -8118,6 +8118,42 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/MusicAlbumResult'
+  /music/preview:
+    get:
+      summary: Artist preview tracks
+      description: Returns the artist's most popular tracks with 30 second preview clips, from Deezer. Preview urls are signed and expire.
+      tags:
+        - music
+      parameters:
+        - in: query
+          name: artist
+          required: true
+          schema:
+            type: string
+            example: 'Daft Punk'
+      responses:
+        '200':
+          description: Preview tracks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tracks:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: number
+                        title:
+                          type: string
+                        albumTitle:
+                          type: string
+                        coverUrl:
+                          type: string
+                        previewUrl:
+                          type: string
   /music/artist:
     post:
       summary: Add an artist to Lidarr

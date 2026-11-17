@@ -67,3 +67,16 @@ export interface MusicPersonalResponse {
   /** The library's most common genres, for the "More {genre}" rows. */
   genres: string[];
 }
+
+export interface MusicPreviewTrack {
+  id: number;
+  title: string;
+  albumTitle?: string;
+  coverUrl?: string;
+  /** A 30 second clip. The url is signed and expires after a while. */
+  previewUrl: string;
+}
+
+export interface MusicPreviewResponse {
+  tracks: MusicPreviewTrack[];
+}

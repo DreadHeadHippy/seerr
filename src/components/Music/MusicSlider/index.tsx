@@ -5,6 +5,7 @@ import type {
   MusicAlbumsResponse,
   MusicSearchResponse,
 } from '@server/interfaces/api/musicInterfaces';
+import { useInView } from 'react-intersection-observer';
 import useSWR from 'swr';
 
 interface MusicSliderProps {
@@ -28,8 +29,15 @@ const MusicSlider = ({
   hideWhenEmpty,
   headerExtra,
 }: MusicSliderProps) => {
+  // Rows load as they near the screen. The browser only runs a handful of
+  // requests at once, so loading every row up front makes the first rows
+  // wait behind ones further down the page.
+  const { ref, inView } = useInView({
+    triggerOnce: true,
+    rootMargin: '600px 0px',
+  });
   const { data, error } = useSWR<MusicSearchResponse | MusicAlbumsResponse>(
-    url,
+    inView ? url : null,
     { revalidateOnFocus: false }
   );
 
@@ -56,7 +64,7 @@ const MusicSlider = ({
         ));
 
   return (
-    <>
+    <div ref={ref}>
       <div className="slider-header">
         <div className="slider-title">
           <span>{title}</span>
@@ -70,7 +78,7 @@ const MusicSlider = ({
         emptyMessage={emptyMessage}
         items={items}
       />
-    </>
+    </div>
   );
 };
 

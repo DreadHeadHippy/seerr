@@ -1,3 +1,4 @@
+import DeezerAPI from '@server/api/deezer';
 import LastfmAPI from '@server/api/lastfm';
 import ListenbrainzAPI from '@server/api/listenbrainz';
 import LidarrAPI, {
@@ -10,6 +11,7 @@ import type {
   MusicArtistAddBody,
   MusicArtistResult,
   MusicPersonalResponse,
+  MusicPreviewResponse,
   MusicSearchResponse,
 } from '@server/interfaces/api/musicInterfaces';
 import type { DiscoveryContext } from '@server/lib/music';
@@ -200,6 +202,35 @@ musicRoutes.get(
     }),
     true
   )
+);
+
+/** The artist's most popular tracks as 30 second preview clips, from Deezer. */
+musicRoutes.get<never, MusicPreviewResponse, never, { artist?: string }>(
+  '/preview',
+  async (req, res, next) => {
+    const artist = (req.query.artist ?? '').toString().trim();
+
+    if (!artist) {
+      return next({ status: 400, message: 'artist is required.' });
+    }
+
+    try {
+      return res
+        .status(200)
+        .json({ tracks: await new DeezerAPI().getTopTracks(artist) });
+    } catch (e) {
+      logger.error('Failed to load artist preview tracks', {
+        label: 'Music Discovery',
+        artist,
+        errorMessage: e.message,
+      });
+
+      return next({
+        status: 500,
+        message: 'Unable to load preview tracks.',
+      });
+    }
+  }
 );
 
 musicRoutes.get<never, MusicSearchResponse, never, { query?: string }>(

@@ -355,12 +355,13 @@ class LidarrAPI extends ServarrBase<{ albumId: number }> {
   }
 
   /**
-   * Every artist in the Lidarr library, cached briefly so the discovery
-   * sliders on the Music page share one request.
+   * Every artist in the Lidarr library, shared by the Music page's rows. A
+   * large library is slow to list, so a cached copy is served while a fresh
+   * one loads in the background; adds through Seerr clear it right away.
    */
   public async getLibraryArtists(): Promise<LidarrArtist[]> {
     try {
-      return await this.get<LidarrArtist[]>('/artist', undefined, 60);
+      return await this.getRolling<LidarrArtist[]>('/artist', undefined, 3600);
     } catch (e) {
       throw new Error(`[Lidarr] Failed to retrieve artists: ${e.message}`, {
         cause: e,
@@ -401,6 +402,10 @@ class LidarrAPI extends ServarrBase<{ albumId: number }> {
     const existing = await this.getLibraryAlbum(options.foreignAlbumId).catch(
       () => undefined
     );
+
+    // The album (and possibly its artist) is about to change in the library.
+    this.removeCache('/album', { foreignAlbumId: options.foreignAlbumId });
+    this.removeCache('/artist');
 
     if (existing) {
       const response = await this.axios.put<LidarrAlbum>(
@@ -510,6 +515,8 @@ class LidarrAPI extends ServarrBase<{ albumId: number }> {
       if (!response.data.id) {
         throw new Error('Lidarr did not return an artist id');
       }
+
+      this.removeCache('/artist');
 
       logger.info('Lidarr accepted request', {
         label: 'Lidarr',

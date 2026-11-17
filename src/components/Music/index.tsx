@@ -4,6 +4,7 @@ import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import PageTitle from '@app/components/Common/PageTitle';
 import ArtistCard from '@app/components/Music/ArtistCard';
 import MusicSlider from '@app/components/Music/MusicSlider';
+import { MusicPreviewProvider } from '@app/components/Music/PreviewPlayer';
 import useDebouncedState from '@app/hooks/useDebouncedState';
 import useSettings from '@app/hooks/useSettings';
 import { Permission, useUser } from '@app/hooks/useUser';
@@ -178,7 +179,7 @@ const Music = () => {
   };
 
   return (
-    <>
+    <MusicPreviewProvider>
       <PageTitle title={intl.formatMessage(messages.music)} />
       <div className="mb-5 mt-1">
         <Header>
@@ -306,7 +307,7 @@ const Music = () => {
           )}
         </>
       )}
-    </>
+    </MusicPreviewProvider>
   );
 };
 

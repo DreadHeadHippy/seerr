@@ -1,6 +1,7 @@
 import Button from '@app/components/Common/Button';
 import CachedImage from '@app/components/Common/CachedImage';
 import StatusBadgeMini from '@app/components/Common/StatusBadgeMini';
+import { useMusicPreview } from '@app/components/Music/PreviewPlayer';
 import MusicRequestModal from '@app/components/RequestModal/MusicRequestModal';
 import { useIsTouch } from '@app/hooks/useIsTouch';
 import { Permission, useUser } from '@app/hooks/useUser';
@@ -9,8 +10,10 @@ import defineMessages from '@app/utils/defineMessages';
 import { Transition } from '@headlessui/react';
 import {
   ArrowDownTrayIcon,
+  ArrowPathIcon,
   ArrowTopRightOnSquareIcon,
 } from '@heroicons/react/24/outline';
+import { PauseIcon, PlayIcon } from '@heroicons/react/24/solid';
 import { MediaStatus } from '@server/constants/media';
 import type { MusicArtistResult } from '@server/interfaces/api/musicInterfaces';
 import { Fragment, useState } from 'react';
@@ -21,6 +24,8 @@ const messages = defineMessages('components.Music.ArtistCard', {
   inLidarr: 'In Lidarr',
   openInLidarr: 'Open in Lidarr',
   albums: '{count, plural, one {# Album} other {# Albums}}',
+  playTopSongs: 'Play Top Songs',
+  pausePreview: 'Pause',
 });
 
 interface ArtistCardProps {
@@ -40,6 +45,10 @@ const ArtistCard = ({
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
   const posterUrl = imageFailed ? undefined : artist.posterUrl;
+  const preview = useMusicPreview();
+  const isPreviewArtist = preview?.artistName === artist.artistName;
+  const isPreviewPlaying = isPreviewArtist && preview?.isPlaying;
+  const isPreviewLoading = preview?.loadingArtist === artist.artistName;
 
   const showRequestButton = hasPermission(
     [Permission.REQUEST, Permission.REQUEST_MUSIC],
@@ -214,6 +223,54 @@ const ArtistCard = ({
               </div>
             </div>
           </Transition>
+
+          {preview && (
+            <Transition
+              as={Fragment}
+              show={
+                showDetail ||
+                showRequestModal ||
+                isPreviewArtist ||
+                isPreviewLoading
+              }
+              enter="transition-opacity"
+              enterFrom="opacity-0"
+              enterTo="opacity-100"
+              leave="transition-opacity"
+              leaveFrom="opacity-100"
+              leaveTo="opacity-0"
+            >
+              <button
+                type="button"
+                className={`absolute left-1/2 top-[35%] z-40 flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full text-white shadow-lg ring-1 ring-white/40 backdrop-blur transition duration-150 hover:scale-110 hover:bg-indigo-600 ${
+                  isPreviewArtist ? 'bg-indigo-600' : 'bg-gray-900/70'
+                }`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  preview.playArtist(artist.artistName);
+                }}
+                onKeyDown={(e) => e.stopPropagation()}
+                aria-label={intl.formatMessage(
+                  isPreviewPlaying
+                    ? messages.pausePreview
+                    : messages.playTopSongs
+                )}
+                title={intl.formatMessage(
+                  isPreviewPlaying
+                    ? messages.pausePreview
+                    : messages.playTopSongs
+                )}
+              >
+                {isPreviewLoading ? (
+                  <ArrowPathIcon className="h-6 w-6 animate-spin" />
+                ) : isPreviewPlaying ? (
+                  <PauseIcon className="h-6 w-6" />
+                ) : (
+                  <PlayIcon className="ml-0.5 h-6 w-6" />
+                )}
+              </button>
+            </Transition>
+          )}
         </div>
       </div>
     </div>

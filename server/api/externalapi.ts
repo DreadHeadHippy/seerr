@@ -22,6 +22,29 @@ export interface ExternalAPIOptions {
   };
 }
 
+/**
+ * Cacheable GETs that are still in flight, by cache key. Pages fire many
+ * requests at once (the Music page's rows all need the Lidarr library), and
+ * without this each one misses the cache and makes the same request.
+ */
+const inflightRequests = new Map<string, Promise<unknown>>();
+
+const shareRequest = <T>(
+  key: string,
+  request: () => Promise<T>
+): Promise<T> => {
+  const inflight = inflightRequests.get(key) as Promise<T> | undefined;
+
+  if (inflight) {
+    return inflight;
+  }
+
+  const promise = request().finally(() => inflightRequests.delete(key));
+  inflightRequests.set(key, promise);
+
+  return promise;
+};
+
 class ExternalAPI {
   protected axios: AxiosInstance;
   private baseUrl: string;
@@ -73,16 +96,21 @@ class ExternalAPI {
       return cachedItem;
     }
 
-    const response = await this.axios.get<T>(endpoint, config);
-    const data = options?.transform
-      ? options.transform(response.data)
-      : response.data;
+    const request = async () => {
+      const response = await this.axios.get<T>(endpoint, config);
+      const data = options?.transform
+        ? options.transform(response.data)
+        : response.data;
 
-    if (cache && ttl !== 0) {
-      cache.set(cacheKey, data, ttl ?? DEFAULT_TTL);
-    }
+      if (cache && ttl !== 0) {
+        cache.set(cacheKey, data, ttl ?? DEFAULT_TTL);
+      }
 
-    return data;
+      return data;
+    };
+
+    // Uncached requests (ttl 0) must always reach the server.
+    return cache && ttl !== 0 ? shareRequest(cacheKey, request) : request();
   }
 
   protected async post<T>(
@@ -119,6 +147,16 @@ class ExternalAPI {
       ...config?.params,
       headers: config?.headers,
     });
+    const request = () =>
+      shareRequest(cacheKey, async () => {
+        const response = await this.axios.get<T>(endpoint, config);
+
+        if (this.cache && ttl !== 0) {
+          this.cache.set(cacheKey, response.data, ttl ?? DEFAULT_TTL);
+        }
+
+        return response.data;
+      });
     const cachedItem = this.cache?.get<T>(cacheKey);
 
     if (cachedItem) {
@@ -129,30 +167,19 @@ class ExternalAPI {
         keyTtl - (ttl ?? DEFAULT_TTL) * 1000 <
         Date.now() - DEFAULT_ROLLING_BUFFER
       ) {
-        this.axios
-          .get<T>(endpoint, config)
-          .then((response) => {
-            this.cache?.set(cacheKey, response.data, ttl ?? DEFAULT_TTL);
-          })
-          .catch((e) => {
-            logger.warn('Failed to refresh cached response in background', {
-              label: 'External API',
-              baseUrl: e.config?.baseURL,
-              endpoint,
-              errorMessage: e.message,
-            });
+        request().catch((e) => {
+          logger.warn('Failed to refresh cached response in background', {
+            label: 'External API',
+            baseUrl: e.config?.baseURL,
+            endpoint,
+            errorMessage: e.message,
           });
+        });
       }
       return cachedItem;
     }
 
-    const response = await this.axios.get<T>(endpoint, config);
-
-    if (this.cache && ttl !== 0) {
-      this.cache.set(cacheKey, response.data, ttl ?? DEFAULT_TTL);
-    }
-
-    return response.data;
+    return request();
   }
 
   protected removeCache(endpoint: string, options?: Record<string, unknown>) {
