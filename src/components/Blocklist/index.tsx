@@ -25,6 +25,7 @@ import type {
   BlocklistItem,
   BlocklistResultsResponse,
 } from '@server/interfaces/api/blocklistInterfaces';
+import type { MusicBlocklistResponse } from '@server/interfaces/api/musicInterfaces';
 import type { MovieDetails } from '@server/models/Movie';
 import type { TvDetails } from '@server/models/Tv';
 import axios from 'axios';
@@ -94,6 +95,22 @@ const Blocklist = () => {
       revalidateOnFocus: false,
     }
   );
+
+  const showArtists =
+    hasPermission(Permission.ADMIN) &&
+    pageIndex === 0 &&
+    (currentFilter === Filter.ALL || currentFilter === Filter.MANUAL);
+  // Same request as the embedded list (deduped), to know if it shows anything.
+  const { data: artistData } = useSWR<MusicBlocklistResponse>(
+    showArtists ? '/api/v1/music/blocklist' : null,
+    { revalidateOnFocus: false }
+  );
+  const searchTerm = debouncedSearchFilter.trim().toLowerCase();
+  const hasArtists =
+    showArtists &&
+    !!artistData?.results.some((item) =>
+      item.artistName.toLowerCase().includes(searchTerm)
+    );
 
   // check if there's no data and no errors in the table
   // so as to show a spinner inside the table and not refresh the whole component
@@ -170,11 +187,16 @@ const Blocklist = () => {
         </div>
       </div>
 
+      {/* Blocklisted artists also show with the movies and series, so they
+          are found without picking the Music filter. */}
+      {showArtists && (
+        <MusicBlocklist search={debouncedSearchFilter} embedded />
+      )}
       {isMusic ? (
         <MusicBlocklist search={debouncedSearchFilter} />
       ) : !data ? (
         <LoadingSpinner />
-      ) : data.results.length === 0 ? (
+      ) : data.results.length === 0 && !hasArtists ? (
         <div className="flex w-full flex-col items-center justify-center py-24 text-white">
           <span className="text-2xl text-gray-400">
             {intl.formatMessage(globalMessages.noresults)}

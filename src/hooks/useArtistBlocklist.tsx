@@ -2,8 +2,9 @@ import useToasts from '@app/hooks/useToasts';
 import globalMessages from '@app/i18n/globalMessages';
 import type { MusicArtistResult } from '@server/interfaces/api/musicInterfaces';
 import axios from 'axios';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useIntl } from 'react-intl';
+import { useSWRConfig } from 'swr';
 
 /**
  * Blocklists or unblocks an artist (admin only, enforced by the server), with
@@ -17,8 +18,20 @@ const useArtistBlocklist = (
 ) => {
   const intl = useIntl();
   const { addToast } = useToasts();
+  const { mutate } = useSWRConfig();
   const [blocklisted, setBlocklisted] = useState(!!artist.blocklisted);
   const [isUpdating, setIsUpdating] = useState(false);
+
+  // Follow fresh data: a cached search result is shown first, then replaced.
+  useEffect(() => {
+    setBlocklisted(!!artist.blocklisted);
+  }, [artist.foreignArtistId, artist.blocklisted]);
+
+  // Refresh the music rows, search and the blocklist so they agree.
+  const refreshMusic = () =>
+    mutate(
+      (key) => typeof key === 'string' && key.startsWith('/api/v1/music/')
+    );
 
   const toggle = async () => {
     const title = artist.artistName;
@@ -75,6 +88,7 @@ const useArtistBlocklist = (
       }
     } finally {
       setIsUpdating(false);
+      refreshMusic();
     }
   };
 

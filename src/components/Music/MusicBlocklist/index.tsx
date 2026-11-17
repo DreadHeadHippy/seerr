@@ -23,13 +23,26 @@ const messages = defineMessages('components.Music.MusicBlocklist', {
   hint: 'Blocklisted artists are hidden from the Music page and search for everyone but admins, and cannot be requested. Blocklist an artist from its card on the Music page.',
 });
 
+interface MusicBlocklistProps {
+  search: string;
+  /**
+   * Shown above the movies and series on the All and Manual filters: no
+   * hint, and nothing at all unless there are matching artists.
+   */
+  embedded?: boolean;
+}
+
 /** The music blocklist, shown on the Blocklist page. Admin only. */
-const MusicBlocklist = ({ search }: { search: string }) => {
+const MusicBlocklist = ({ search, embedded = false }: MusicBlocklistProps) => {
   const intl = useIntl();
   const { data, error, mutate } = useSWR<MusicBlocklistResponse>(
     '/api/v1/music/blocklist',
     { revalidateOnFocus: false }
   );
+
+  if (embedded && (error || !data)) {
+    return null;
+  }
 
   if (error) {
     return (
@@ -49,6 +62,18 @@ const MusicBlocklist = ({ search }: { search: string }) => {
         item.artistName.toLowerCase().includes(term)
       )
     : data.results;
+
+  if (embedded) {
+    return results.length === 0 ? null : (
+      <>
+        {results.map((item) => (
+          <div className="py-2" key={item.foreignArtistId}>
+            <BlocklistedArtist item={item} onRemoved={() => mutate()} />
+          </div>
+        ))}
+      </>
+    );
+  }
 
   return (
     <>

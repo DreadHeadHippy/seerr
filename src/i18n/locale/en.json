@@ -401,6 +401,7 @@
   "components.Music.ArtistDetails.inLidarr": "In Lidarr",
   "components.Music.ArtistDetails.links": "Links",
   "components.Music.ArtistDetails.live": "Live",
+  "components.Music.ArtistDetails.moreLinks": "+{count} more",
   "components.Music.ArtistDetails.noReleases": "No releases found for this artist.",
   "components.Music.ArtistDetails.openInLidarr": "Open in Lidarr",
   "components.Music.ArtistDetails.other": "Other",

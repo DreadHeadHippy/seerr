@@ -46,6 +46,7 @@ const messages = defineMessages('components.Music.ArtistDetails', {
   type: 'Type',
   releases: '{count, plural, one {# Release} other {# Releases}}',
   links: 'Links',
+  moreLinks: '+{count} more',
   discography: 'Discography',
   noReleases: 'No releases found for this artist.',
   albums: 'Albums',
@@ -99,6 +100,8 @@ const sectionOf = (release: MusicAlbumResult): SectionKey => {
 
 /** Bios longer than this are collapsed behind "Show More". */
 const BIO_PREVIEW_LENGTH = 600;
+/** Links shown before "more": some artists have twenty. */
+const LINK_PREVIEW_COUNT = 6;
 
 const ArtistDetailsContent = ({ details }: { details: MusicArtistDetails }) => {
   const intl = useIntl();
@@ -107,6 +110,7 @@ const ArtistDetailsContent = ({ details }: { details: MusicArtistDetails }) => {
   const [artist, setArtist] = useState<MusicArtistResult>(details.artist);
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [showFullBio, setShowFullBio] = useState(false);
+  const [showAllLinks, setShowAllLinks] = useState(false);
   const {
     blocklisted,
     isUpdating: isBlocklistUpdating,
@@ -312,18 +316,34 @@ const ArtistDetailsContent = ({ details }: { details: MusicArtistDetails }) => {
             {details.artist.links.length > 0 && (
               <div className="media-fact">
                 <span>{intl.formatMessage(messages.links)}</span>
-                <span className="media-fact-value">
-                  {details.artist.links.map((link) => (
+                <span className="media-fact-value flex flex-wrap justify-end gap-x-3 gap-y-1">
+                  {(showAllLinks
+                    ? details.artist.links
+                    : details.artist.links.slice(0, LINK_PREVIEW_COUNT)
+                  ).map((link) => (
                     <a
                       key={link.url}
                       href={link.url}
                       target="_blank"
                       rel="noreferrer"
-                      className="block capitalize hover:text-white hover:underline"
+                      className="capitalize hover:text-white hover:underline"
                     >
                       {link.name}
                     </a>
                   ))}
+                  {!showAllLinks &&
+                    details.artist.links.length > LINK_PREVIEW_COUNT && (
+                      <button
+                        type="button"
+                        className="text-indigo-400 transition hover:text-indigo-300"
+                        onClick={() => setShowAllLinks(true)}
+                      >
+                        {intl.formatMessage(messages.moreLinks, {
+                          count:
+                            details.artist.links.length - LINK_PREVIEW_COUNT,
+                        })}
+                      </button>
+                    )}
                 </span>
               </div>
             )}
@@ -331,7 +351,7 @@ const ArtistDetailsContent = ({ details }: { details: MusicArtistDetails }) => {
         </div>
       </div>
 
-      <div className="mt-8">
+      <div>
         {sections.length === 0 ? (
           <div className="py-12 text-center text-gray-400">
             {intl.formatMessage(messages.noReleases)}

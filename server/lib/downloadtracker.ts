@@ -1,6 +1,7 @@
 import RadarrAPI from '@server/api/servarr/radarr';
 import SonarrAPI from '@server/api/servarr/sonarr';
 import { MediaType } from '@server/constants/media';
+import { anyDownloadLeft, scanMediaServerSoon } from '@server/lib/scanSoon';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import { uniqWith } from 'lodash';
@@ -76,68 +77,74 @@ class DownloadTracker {
       );
     });
 
-    // Load downloads from Radarr servers
+    // Load downloads from Radarr servers, Enable Scan or not: Enable Scan is
+    // about availability, and requesters should always see progress
     Promise.all(
       filteredServers.map(async (server) => {
-        if (server.syncEnabled) {
-          const radarr = new RadarrAPI({
-            apiKey: server.apiKey,
-            url: RadarrAPI.buildUrl(server, '/api/v3'),
-          });
+        const radarr = new RadarrAPI({
+          apiKey: server.apiKey,
+          url: RadarrAPI.buildUrl(server, '/api/v3'),
+        });
 
-          try {
-            await radarr.refreshMonitoredDownloads();
-            const queueItems = await radarr.getQueue();
+        try {
+          await radarr.refreshMonitoredDownloads();
+          const queueItems = await radarr.getQueue();
 
-            this.radarrServers[server.id] = queueItems.map((item) => ({
-              externalId: item.movieId,
-              estimatedCompletionTime: new Date(item.estimatedCompletionTime),
-              mediaType: MediaType.MOVIE,
-              size: item.size,
-              sizeLeft: item.sizeleft,
-              status: item.status,
-              timeLeft: item.timeleft,
-              title: item.title,
-              downloadId: item.downloadId,
-            }));
-
-            if (queueItems.length > 0) {
-              logger.debug(
-                `Found ${queueItems.length} item(s) in progress on Radarr server: ${server.name}`,
-                { label: 'Download Tracker' }
-              );
-            }
-          } catch {
-            logger.error(
-              `Unable to get queue from Radarr server: ${server.name}`,
-              {
-                label: 'Download Tracker',
-              }
-            );
+          if (
+            anyDownloadLeft(
+              this.radarrServers[server.id],
+              queueItems.map((item) => item.downloadId)
+            )
+          ) {
+            scanMediaServerSoon();
           }
 
-          // Duplicate this data to matching servers
-          const matchingServers = settings.radarr.filter(
-            (rs) =>
-              rs.hostname === server.hostname &&
-              rs.port === server.port &&
-              rs.baseUrl === server.baseUrl &&
-              rs.id !== server.id
-          );
+          this.radarrServers[server.id] = queueItems.map((item) => ({
+            externalId: item.movieId,
+            estimatedCompletionTime: new Date(item.estimatedCompletionTime),
+            mediaType: MediaType.MOVIE,
+            size: item.size,
+            sizeLeft: item.sizeleft,
+            status: item.status,
+            timeLeft: item.timeleft,
+            title: item.title,
+            downloadId: item.downloadId,
+          }));
 
-          if (matchingServers.length > 0) {
+          if (queueItems.length > 0) {
             logger.debug(
-              `Matching download data to ${matchingServers.length} other Radarr server(s)`,
+              `Found ${queueItems.length} item(s) in progress on Radarr server: ${server.name}`,
               { label: 'Download Tracker' }
             );
           }
-
-          matchingServers.forEach((ms) => {
-            if (ms.syncEnabled) {
-              this.radarrServers[ms.id] = this.radarrServers[server.id];
+        } catch {
+          logger.error(
+            `Unable to get queue from Radarr server: ${server.name}`,
+            {
+              label: 'Download Tracker',
             }
-          });
+          );
         }
+
+        // Duplicate this data to matching servers
+        const matchingServers = settings.radarr.filter(
+          (rs) =>
+            rs.hostname === server.hostname &&
+            rs.port === server.port &&
+            rs.baseUrl === server.baseUrl &&
+            rs.id !== server.id
+        );
+
+        if (matchingServers.length > 0) {
+          logger.debug(
+            `Matching download data to ${matchingServers.length} other Radarr server(s)`,
+            { label: 'Download Tracker' }
+          );
+        }
+
+        matchingServers.forEach((ms) => {
+          this.radarrServers[ms.id] = this.radarrServers[server.id];
+        });
       })
     );
   }
@@ -154,69 +161,75 @@ class DownloadTracker {
       );
     });
 
-    // Load downloads from Sonarr servers
+    // Load downloads from Sonarr servers, Enable Scan or not: Enable Scan is
+    // about availability, and requesters should always see progress
     Promise.all(
       filteredServers.map(async (server) => {
-        if (server.syncEnabled) {
-          const sonarr = new SonarrAPI({
-            apiKey: server.apiKey,
-            url: SonarrAPI.buildUrl(server, '/api/v3'),
-          });
+        const sonarr = new SonarrAPI({
+          apiKey: server.apiKey,
+          url: SonarrAPI.buildUrl(server, '/api/v3'),
+        });
 
-          try {
-            await sonarr.refreshMonitoredDownloads();
-            const queueItems = await sonarr.getQueue();
+        try {
+          await sonarr.refreshMonitoredDownloads();
+          const queueItems = await sonarr.getQueue();
 
-            this.sonarrServers[server.id] = queueItems.map((item) => ({
-              externalId: item.seriesId,
-              estimatedCompletionTime: new Date(item.estimatedCompletionTime),
-              mediaType: MediaType.TV,
-              size: item.size,
-              sizeLeft: item.sizeleft,
-              status: item.status,
-              timeLeft: item.timeleft,
-              title: item.title,
-              episode: item.episode,
-              downloadId: item.downloadId,
-            }));
-
-            if (queueItems.length > 0) {
-              logger.debug(
-                `Found ${queueItems.length} item(s) in progress on Sonarr server: ${server.name}`,
-                { label: 'Download Tracker' }
-              );
-            }
-          } catch {
-            logger.error(
-              `Unable to get queue from Sonarr server: ${server.name}`,
-              {
-                label: 'Download Tracker',
-              }
-            );
+          if (
+            anyDownloadLeft(
+              this.sonarrServers[server.id],
+              queueItems.map((item) => item.downloadId)
+            )
+          ) {
+            scanMediaServerSoon();
           }
 
-          // Duplicate this data to matching servers
-          const matchingServers = settings.sonarr.filter(
-            (ss) =>
-              ss.hostname === server.hostname &&
-              ss.port === server.port &&
-              ss.baseUrl === server.baseUrl &&
-              ss.id !== server.id
-          );
+          this.sonarrServers[server.id] = queueItems.map((item) => ({
+            externalId: item.seriesId,
+            estimatedCompletionTime: new Date(item.estimatedCompletionTime),
+            mediaType: MediaType.TV,
+            size: item.size,
+            sizeLeft: item.sizeleft,
+            status: item.status,
+            timeLeft: item.timeleft,
+            title: item.title,
+            episode: item.episode,
+            downloadId: item.downloadId,
+          }));
 
-          if (matchingServers.length > 0) {
+          if (queueItems.length > 0) {
             logger.debug(
-              `Matching download data to ${matchingServers.length} other Sonarr server(s)`,
+              `Found ${queueItems.length} item(s) in progress on Sonarr server: ${server.name}`,
               { label: 'Download Tracker' }
             );
           }
-
-          matchingServers.forEach((ms) => {
-            if (ms.syncEnabled) {
-              this.sonarrServers[ms.id] = this.sonarrServers[server.id];
+        } catch {
+          logger.error(
+            `Unable to get queue from Sonarr server: ${server.name}`,
+            {
+              label: 'Download Tracker',
             }
-          });
+          );
         }
+
+        // Duplicate this data to matching servers
+        const matchingServers = settings.sonarr.filter(
+          (ss) =>
+            ss.hostname === server.hostname &&
+            ss.port === server.port &&
+            ss.baseUrl === server.baseUrl &&
+            ss.id !== server.id
+        );
+
+        if (matchingServers.length > 0) {
+          logger.debug(
+            `Matching download data to ${matchingServers.length} other Sonarr server(s)`,
+            { label: 'Download Tracker' }
+          );
+        }
+
+        matchingServers.forEach((ms) => {
+          this.sonarrServers[ms.id] = this.sonarrServers[server.id];
+        });
       })
     );
   }
