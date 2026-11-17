@@ -153,6 +153,23 @@ class RadarrScanner
     }
   }
 
+  /**
+   * Syncs one movie now (e.g. right after Radarr imports it) instead of on
+   * the next scheduled scan. Skipped while a scan runs, since that scan
+   * covers it, and for servers without Enable Scan or that are 4K.
+   */
+  public async syncOne(
+    server: RadarrSettings,
+    radarrMovie: RadarrMovie
+  ): Promise<void> {
+    if (this.running || !server.syncEnabled || server.is4k) {
+      return;
+    }
+
+    this.currentServer = server;
+    await this.processRadarrMovie(radarrMovie);
+  }
+
   private async processRadarrMovie(radarrMovie: RadarrMovie): Promise<void> {
     const server4k = this.enable4kMovie && this.currentServer.is4k;
     if (server4k) {

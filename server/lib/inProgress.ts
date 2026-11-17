@@ -3,6 +3,7 @@ import SonarrAPI, { type SonarrSeries } from '@server/api/servarr/sonarr';
 import { MediaRequestStatus, MediaStatus } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
+import { syncMovie, syncSeries } from '@server/lib/arrSync';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import { In } from 'typeorm';
@@ -155,6 +156,31 @@ const PHASE_ORDER: InProgressPhase[] = [
   'notSent',
 ];
 
+/** A stale status is corrected at most this often per title. */
+const RESYNC_MS = 30 * 60 * 1000;
+const lastResync = new Map<number, number>();
+
+/**
+ * Seerr still has it as processing but the *arr says otherwise: correct it
+ * now with the scan logic rather than leave it for the daily scan.
+ */
+const resyncStale = (mediaId: number, sync: () => Promise<void>): void => {
+  const now = Date.now();
+
+  if (now - (lastResync.get(mediaId) ?? 0) < RESYNC_MS) {
+    return;
+  }
+
+  lastResync.set(mediaId, now);
+  sync().catch((e) =>
+    logger.debug('Unable to correct a stale status', {
+      label: 'In Progress',
+      mediaId,
+      errorMessage: e.message,
+    })
+  );
+};
+
 /** The page and every user's sidebar poll this; the *arrs needn't feel it. */
 const CACHE_MS = 30 * 1000;
 let cached: { at: number; result: Promise<InProgressItem[]> } | undefined;
@@ -248,6 +274,10 @@ const buildInProgress = async (): Promise<InProgressItem[]> => {
             : null;
 
         phase = classifyMovie({ ...state, movie });
+
+        if (!phase && movie && m.status === MediaStatus.PROCESSING) {
+          resyncStale(m.id, () => syncMovie(m.serviceId as number, movie));
+        }
       } else if (m.mediaType === 'tv') {
         const server = settings.sonarr.find((s) => s.id === m.serviceId);
         const series =
@@ -288,6 +318,10 @@ const buildInProgress = async (): Promise<InProgressItem[]> => {
                 .filter((s) => s.status === MediaStatus.PROCESSING)
                 .map((s) => s.seasonNumber),
         });
+
+        if (!phase && series) {
+          resyncStale(m.id, () => syncSeries(m.serviceId as number, series));
+        }
       }
 
       return phase

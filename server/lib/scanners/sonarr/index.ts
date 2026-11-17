@@ -178,6 +178,23 @@ class SonarrScanner
     }
   }
 
+  /**
+   * Syncs one series now (e.g. right after Sonarr imports episodes) instead
+   * of on the next scheduled scan. Skipped while a scan runs, since that
+   * scan covers it, and for servers without Enable Scan or that are 4K.
+   */
+  public async syncOne(
+    server: SonarrSettings,
+    sonarrSeries: SonarrSeries
+  ): Promise<void> {
+    if (this.running || !server.syncEnabled || server.is4k) {
+      return;
+    }
+
+    this.currentServer = server;
+    await this.processSonarrSeries(sonarrSeries);
+  }
+
   private async processSonarrSeries(sonarrSeries: SonarrSeries) {
     const server4k = this.enable4kShow && this.currentServer.is4k;
     if (server4k) {

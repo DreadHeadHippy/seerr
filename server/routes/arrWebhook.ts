@@ -1,3 +1,4 @@
+import { syncFromArrSoon } from '@server/lib/arrSync';
 import { isArrService, parseArrWebhook } from '@server/lib/arrWebhook';
 import downloadTracker from '@server/lib/downloadtracker';
 import { getSettings } from '@server/lib/settings';
@@ -66,6 +67,11 @@ arrWebhookRoutes.post('/:service/:serverId', async (req, res) => {
         downloadId: event.downloadId,
       });
       downloadTracker.markImported(service, serverId, event);
+
+      // Available in Seerr now, not at the next scheduled scan.
+      if (event.externalId !== undefined) {
+        syncFromArrSoon(service, serverId, event.externalId);
+      }
       break;
     case 'test':
       logger.info(`Test webhook received from ${service} server ${serverId}`, {

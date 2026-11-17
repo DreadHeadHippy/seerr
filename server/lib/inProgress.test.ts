@@ -2,6 +2,7 @@ import type { RadarrMovie } from '@server/api/servarr/radarr';
 import RadarrAPI from '@server/api/servarr/radarr';
 import type { SonarrSeries } from '@server/api/servarr/sonarr';
 import SonarrAPI from '@server/api/servarr/sonarr';
+import TheMovieDb from '@server/api/themoviedb';
 import {
   MediaRequestStatus,
   MediaStatus,
@@ -146,6 +147,14 @@ mock.method(SonarrAPI.prototype, 'getSeriesById', (id: number) =>
   sonarrSeries(id)
 );
 mock.method(MediaRequest, 'sendNotification', async () => undefined);
+// Turning a movie available notifies its requester, which reads TMDB.
+Object.defineProperty(TheMovieDb.prototype, 'getMovie', {
+  set() {},
+  get() {
+    return async () => ({ id: 1, title: 'Movie', overview: '' });
+  },
+  configurable: true,
+});
 
 describe('getInProgress', () => {
   setupTestDb();
@@ -167,6 +176,7 @@ describe('getInProgress', () => {
       useSsl: false,
       is4k: false,
       isDefault: true,
+      syncEnabled: true,
     };
     getSettings().radarr = [server as RadarrSettings];
     getSettings().sonarr = [server as SonarrSettings];
@@ -208,6 +218,10 @@ describe('getInProgress', () => {
     await requestMovie(5, MediaRequestStatus.PENDING); // not approved
     configureArrs();
     radarrMovie = async (id) => ({
+      id,
+      tmdbId: id,
+      title: `Movie ${id}`,
+      titleSlug: `movie-${id}`,
       hasFile: id === 1,
       monitored: true,
       isAvailable: id !== 3,
@@ -223,9 +237,27 @@ describe('getInProgress', () => {
         [4, 'notSent'],
       ]
     );
+
+    // Movie 1 is in Radarr's library but Seerr still had it processing:
+    // corrected in the background, without waiting for a scan.
+    let status: MediaStatus | undefined;
+    for (let i = 0; i < 50 && status !== MediaStatus.AVAILABLE; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      status = (
+        await getRepository(Media).findOneOrFail({ where: { tmdbId: 1 } })
+      ).status;
+    }
+    assert.equal(status, MediaStatus.AVAILABLE);
   });
 
   it('leaves out series with everything aired so far', async () => {
+    // Correcting series 10's status would look it up on TMDB; not tested here.
+    const { sonarrScanner } = await import('@server/lib/scanners/sonarr');
+    const syncOne = mock.method(
+      sonarrScanner,
+      'syncOne',
+      async () => undefined
+    );
     const requestedBy = await getRepository(User).findOneOrFail({
       where: { id: 1 },
     });
@@ -286,5 +318,6 @@ describe('getInProgress', () => {
       items.map((item) => [item.tmdbId, item.phase]),
       [[11, 'searching']]
     );
+    syncOne.mock.restore();
   });
 });
