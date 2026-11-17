@@ -3,31 +3,44 @@ import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import PageTitle from '@app/components/Common/PageTitle';
 import TmdbTitleCard from '@app/components/TitleCard/TmdbTitleCard';
 import defineMessages from '@app/utils/defineMessages';
-import type { ActiveDownload } from '@server/routes/downloads';
+import { downloadEtaMessages } from '@app/utils/downloadEta';
+import type { InProgressItem, InProgressPhase } from '@server/lib/inProgress';
 import { useIntl } from 'react-intl';
 import useSWR from 'swr';
 
 export const inProgressMessages = defineMessages('components.InProgress', {
   inProgress: 'In Progress',
   subtext:
-    'Everything on its way to the library, live from the download client.',
+    "Everything requested that isn't in the library yet, live from the download client.",
   downloading: 'Downloading',
   importing: 'Importing',
   searching: 'Searching',
+  unreleased: 'Not Released Yet',
+  notSent: 'Not Sent to Radarr/Sonarr',
   nothing: 'Nothing in progress right now.',
 });
 
 /** The list behind the page and the sidebar count. */
 export const useInProgress = (refreshInterval: number) =>
-  useSWR<{ results: ActiveDownload[] }>('/api/v1/downloads/active', {
+  useSWR<{ results: InProgressItem[] }>('/api/v1/downloads/active', {
     refreshInterval,
   });
 
-const PHASES: ActiveDownload['phase'][] = [
+const PHASES: InProgressPhase[] = [
   'downloading',
   'importing',
   'searching',
+  'unreleased',
+  'notSent',
 ];
+
+/** What a card in these groups says instead of "Searching…". */
+const WAITING_LABELS: Partial<
+  Record<InProgressPhase, keyof typeof downloadEtaMessages>
+> = {
+  unreleased: 'notReleased',
+  notSent: 'notSent',
+};
 
 /**
  * Everything downloading, importing or still being searched for, as the
@@ -64,6 +77,11 @@ const InProgress = () => {
           return null;
         }
 
+        const labelKey = WAITING_LABELS[phase];
+        const waitingLabel = labelKey
+          ? intl.formatMessage(downloadEtaMessages[labelKey])
+          : undefined;
+
         return (
           <section key={phase} className="mb-8">
             <h3 className="mb-3 text-xl font-bold text-gray-200">
@@ -80,6 +98,7 @@ const InProgress = () => {
                     tmdbId={item.tmdbId}
                     type={item.mediaType}
                     canExpand
+                    waitingLabel={waitingLabel}
                   />
                 </li>
               ))}

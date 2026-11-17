@@ -156,10 +156,11 @@ const Sidebar = ({
   const { hasPermission } = useUser();
   const mediaAccess = useMediaAccess();
   useClickOutside(navRef, () => setClosed());
-  // Downloading or importing; searches can sit for ages and aren't counted.
+  // Downloading or importing. Searches and unreleased titles can sit for
+  // ages, so they aren't counted.
   const { data: inProgress } = useInProgress(60 * 1000);
   const activeCount = (inProgress?.results ?? []).filter(
-    (item) => item.phase !== 'searching'
+    (item) => item.phase === 'downloading' || item.phase === 'importing'
   ).length;
 
   const visibleLinks = SidebarLinks.filter(

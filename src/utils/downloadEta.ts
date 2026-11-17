@@ -8,6 +8,8 @@ export const downloadEtaMessages = defineMessages('components.DownloadEta', {
   importing: 'Importing',
   seasonsReady: '{seasons} ready',
   searching: 'Searching…',
+  notReleased: 'Not released',
+  notSent: 'Not sent',
   stalled: 'Stalled',
   queued: 'Queued',
   paused: 'Paused',

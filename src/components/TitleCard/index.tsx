@@ -62,6 +62,8 @@ interface TitleCardProps {
   status?: MediaStatus;
   canExpand?: boolean;
   inProgress?: boolean;
+  /** Said instead of "Searching…" (e.g. "Not released"). */
+  waitingLabel?: string;
   /** The media's download progress, for the ring on the status badge. */
   downloads?: DownloadingItem[];
   isAddedToWatchlist?: number | boolean;
@@ -96,6 +98,7 @@ const TitleCard = ({
   mediaType,
   isAddedToWatchlist = false,
   inProgress = false,
+  waitingLabel,
   downloads,
   canExpand = false,
   mutateParent,
@@ -235,7 +238,7 @@ const TitleCard = ({
   );
   const etaTag = ((): { text: string; tone: EtaTone } | undefined => {
     const searching = {
-      text: intl.formatMessage(downloadEtaMessages.searching),
+      text: waitingLabel ?? intl.formatMessage(downloadEtaMessages.searching),
       tone: 'muted' as const,
     };
 

@@ -2990,7 +2990,7 @@ paths:
   /downloads/active:
     get:
       summary: Media in progress
-      description: Movies and series processing (or with a season processing), downloading first, then importing, then still being searched for.
+      description: Requested movies and series still on their way, checked with Radarr/Sonarr so items already in the library, or only waiting on unaired episodes, are left out. Downloading first, then importing, searching, unreleased and not sent to Radarr/Sonarr.
       tags:
         - settings
       responses:
@@ -3015,7 +3015,14 @@ paths:
                           enum: [movie, tv]
                         phase:
                           type: string
-                          enum: [downloading, importing, searching]
+                          enum:
+                            [
+                              downloading,
+                              importing,
+                              searching,
+                              unreleased,
+                              notSent,
+                            ]
   /downloads/live:
     get:
       summary: Live download progress
