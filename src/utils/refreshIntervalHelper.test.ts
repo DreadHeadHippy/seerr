@@ -4,8 +4,10 @@ import type { DownloadingItem } from '@server/lib/downloadtracker';
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  WAITING_FOR_DOWNLOAD_INTERVAL,
   getRequestDownloadStatus,
   mediaRefreshInterval,
+  requestRefreshInterval,
 } from './refreshIntervalHelper';
 
 const createDownloadItem = (
@@ -164,14 +166,14 @@ describe('mediaRefreshInterval', () => {
     );
   });
 
-  it('does not poll processing media when no download was seen', () => {
+  it('polls slowly for a download to start when none was seen yet', () => {
     assert.equal(
       mediaRefreshInterval(
         createMedia({ status: MediaStatus.PROCESSING }),
         { current: false },
         15000
       ),
-      0
+      WAITING_FOR_DOWNLOAD_INTERVAL
     );
   });
 
@@ -222,5 +224,54 @@ describe('mediaRefreshInterval', () => {
       ),
       15000
     );
+  });
+});
+
+describe('requestRefreshInterval', () => {
+  it('polls fast while the request is downloading', () => {
+    assert.equal(
+      requestRefreshInterval(
+        {
+          media: createMedia({
+            status: MediaStatus.PROCESSING,
+            downloadStatus: [createDownloadItem({ downloadId: 'movie-1' })],
+          }),
+        },
+        15000
+      ),
+      15000
+    );
+  });
+
+  it('polls slowly while approved and waiting for a download', () => {
+    assert.equal(
+      requestRefreshInterval(
+        { media: createMedia({ status: MediaStatus.PROCESSING }) },
+        15000
+      ),
+      WAITING_FOR_DOWNLOAD_INTERVAL
+    );
+  });
+
+  it('follows the 4K status and downloads for 4K requests', () => {
+    const media = createMedia({
+      status: MediaStatus.AVAILABLE,
+      status4k: MediaStatus.PROCESSING,
+      downloadStatus: [createDownloadItem({ downloadId: 'movie-1' })],
+    });
+
+    assert.equal(
+      requestRefreshInterval({ is4k: true, media }, 15000),
+      WAITING_FOR_DOWNLOAD_INTERVAL
+    );
+  });
+
+  it('does not poll pending or available requests', () => {
+    for (const status of [MediaStatus.PENDING, MediaStatus.AVAILABLE]) {
+      assert.equal(
+        requestRefreshInterval({ media: createMedia({ status }) }, 15000),
+        0
+      );
+    }
   });
 });

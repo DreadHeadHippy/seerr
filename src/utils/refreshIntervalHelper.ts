@@ -2,6 +2,9 @@ import { MediaStatus } from '@server/constants/media';
 import type Media from '@server/entity/Media';
 import type { DownloadingItem } from '@server/lib/downloadtracker';
 
+/** How often to check for a download starting on something requested. */
+export const WAITING_FOR_DOWNLOAD_INTERVAL = 60 * 1000;
+
 export const getRequestDownloadStatus = (
   downloadStatus: DownloadingItem[] | undefined,
   seasonNumbers: number[]
@@ -59,5 +62,47 @@ export const mediaRefreshInterval = (
       item?.status4k === MediaStatus.PROCESSING
   );
 
-  return sawDownload.current && processing ? timer : 0;
+  // Until a download shows up (the *arr is still searching), check now and
+  // then so its progress and ETA appear without a reload.
+  return processing
+    ? sawDownload.current
+      ? timer
+      : WAITING_FOR_DOWNLOAD_INTERVAL
+    : 0;
+};
+
+/**
+ * Refresh interval for a request card or row, from its latest data: fast
+ * while downloading, slow while approved and waiting for a download to
+ * start, otherwise off.
+ */
+export const requestRefreshInterval = (
+  request:
+    | {
+        is4k?: boolean;
+        media?: Pick<
+          Media,
+          'downloadStatus' | 'downloadStatus4k' | 'status' | 'status4k'
+        >;
+      }
+    | undefined,
+  timer: number
+) => {
+  const media = request?.media;
+
+  if (!media) {
+    return 0;
+  }
+
+  const downloads = request.is4k
+    ? media.downloadStatus4k
+    : media.downloadStatus;
+
+  if ((downloads ?? []).length > 0) {
+    return timer;
+  }
+
+  const status = request.is4k ? media.status4k : media.status;
+
+  return status === MediaStatus.PROCESSING ? WAITING_FOR_DOWNLOAD_INTERVAL : 0;
 };
