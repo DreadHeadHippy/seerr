@@ -31,6 +31,17 @@ const messages = defineMessages(
   {
     general: 'General',
     generalsettings: 'General Settings',
+    storageLimit: 'Storage Limit',
+    storageLimitTip:
+      'GB their requests may take up on disk. Leave empty for the default ({default}).',
+    unlimited: 'unlimited',
+    gb: '{gb} GB',
+    deletionMode: 'Deleting Their Requests',
+    deletionModeTip: 'What they can do with media they requested.',
+    deletionDefault: 'Default ({mode})',
+    deletionNone: 'Nothing',
+    deletionRequest: 'Ask an admin to delete',
+    deletionDirect: 'Delete it themselves',
     displayName: 'Display Name',
     email: 'Email',
     save: 'Save Changes',
@@ -159,6 +170,8 @@ const UserGeneralSettings = () => {
           movieQuotaDays: data?.movieQuotaDays,
           tvQuotaLimit: data?.tvQuotaLimit,
           tvQuotaDays: data?.tvQuotaDays,
+          storageLimitGb: data?.storageLimitGb ?? '',
+          deletionMode: data?.deletionMode ?? '',
           watchlistSyncMovies: data?.watchlistSyncMovies,
           watchlistSyncTv: data?.watchlistSyncTv,
         }}
@@ -180,6 +193,11 @@ const UserGeneralSettings = () => {
               movieQuotaDays: movieQuotaEnabled ? values.movieQuotaDays : null,
               tvQuotaLimit: tvQuotaEnabled ? values.tvQuotaLimit : null,
               tvQuotaDays: tvQuotaEnabled ? values.tvQuotaDays : null,
+              storageLimitGb:
+                values.storageLimitGb === '' || values.storageLimitGb === null
+                  ? null
+                  : Number(values.storageLimitGb),
+              deletionMode: values.deletionMode || null,
               watchlistSyncMovies: values.watchlistSyncMovies,
               watchlistSyncTv: values.watchlistSyncTv,
             });
@@ -498,6 +516,70 @@ const UserGeneralSettings = () => {
                                 : undefined
                             }
                           />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="form-row">
+                      <label htmlFor="storageLimitGb" className="text-label">
+                        <span>{intl.formatMessage(messages.storageLimit)}</span>
+                        <span className="label-tip">
+                          {intl.formatMessage(messages.storageLimitTip, {
+                            default: data?.globalStorageLimitGb
+                              ? intl.formatMessage(messages.gb, {
+                                  gb: data.globalStorageLimitGb,
+                                })
+                              : intl.formatMessage(messages.unlimited),
+                          })}
+                        </span>
+                      </label>
+                      <div className="form-input-area">
+                        <div className="form-input-field">
+                          <Field
+                            id="storageLimitGb"
+                            name="storageLimitGb"
+                            type="number"
+                            min={0}
+                            inputMode="numeric"
+                            className="short"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="form-row">
+                      <label htmlFor="deletionMode" className="text-label">
+                        <span>{intl.formatMessage(messages.deletionMode)}</span>
+                        <span className="label-tip">
+                          {intl.formatMessage(messages.deletionModeTip)}
+                        </span>
+                      </label>
+                      <div className="form-input-area">
+                        <div className="form-input-field">
+                          <Field
+                            as="select"
+                            id="deletionMode"
+                            name="deletionMode"
+                          >
+                            <option value="">
+                              {intl.formatMessage(messages.deletionDefault, {
+                                mode: intl.formatMessage(
+                                  data?.globalDeletionMode === 'direct'
+                                    ? messages.deletionDirect
+                                    : data?.globalDeletionMode === 'request'
+                                      ? messages.deletionRequest
+                                      : messages.deletionNone
+                                ),
+                              })}
+                            </option>
+                            <option value="none">
+                              {intl.formatMessage(messages.deletionNone)}
+                            </option>
+                            <option value="request">
+                              {intl.formatMessage(messages.deletionRequest)}
+                            </option>
+                            <option value="direct">
+                              {intl.formatMessage(messages.deletionDirect)}
+                            </option>
+                          </Field>
                         </div>
                       </div>
                     </div>

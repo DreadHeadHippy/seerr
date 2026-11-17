@@ -15,6 +15,12 @@ export interface UserSettingsGeneralResponse {
   globalMovieQuotaLimit?: number;
   globalTvQuotaLimit?: number;
   globalTvQuotaDays?: number;
+  /** GB their requests may use; null means the default. */
+  storageLimitGb?: number | null;
+  /** none, request or direct; null means the default. */
+  deletionMode?: string | null;
+  globalStorageLimitGb?: number;
+  globalDeletionMode?: string;
   watchlistSyncMovies?: boolean;
   watchlistSyncTv?: boolean;
 }

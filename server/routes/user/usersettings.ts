@@ -1,5 +1,6 @@
 import JellyfinAPI from '@server/api/jellyfin';
 import PlexTvAPI from '@server/api/plextv';
+import { DeletionMode } from '@server/constants/deletion';
 import { ApiErrorCode } from '@server/constants/error';
 import { MediaServerType } from '@server/constants/server';
 import { UserType } from '@server/constants/user';
@@ -61,6 +62,10 @@ userSettingsRoutes.get<{ id: string }, UserSettingsGeneralResponse>(
         globalMovieQuotaLimit: defaultQuotas.movie.quotaLimit,
         globalTvQuotaDays: defaultQuotas.tv.quotaDays,
         globalTvQuotaLimit: defaultQuotas.tv.quotaLimit,
+        storageLimitGb: user.storageLimitGb ?? null,
+        deletionMode: user.deletionMode ?? null,
+        globalStorageLimitGb: getSettings().main.defaultStorageLimitGb ?? 0,
+        globalDeletionMode: getSettings().main.defaultDeletionMode ?? 'none',
         watchlistSyncMovies: user.settings?.watchlistSyncMovies,
         watchlistSyncTv: user.settings?.watchlistSyncTv,
       });
@@ -124,6 +129,21 @@ userSettingsRoutes.post<
       user.movieQuotaLimit = req.body.movieQuotaLimit;
       user.tvQuotaDays = req.body.tvQuotaDays;
       user.tvQuotaLimit = req.body.tvQuotaLimit;
+
+      if (req.body.storageLimitGb !== undefined) {
+        const gb = Number(req.body.storageLimitGb);
+        user.storageLimitGb =
+          req.body.storageLimitGb === null || !Number.isFinite(gb) || gb < 0
+            ? null
+            : Math.round(gb);
+      }
+
+      if (req.body.deletionMode !== undefined) {
+        const mode = req.body.deletionMode as DeletionMode;
+        user.deletionMode = Object.values(DeletionMode).includes(mode)
+          ? mode
+          : null;
+      }
     }
 
     if (!user.settings) {

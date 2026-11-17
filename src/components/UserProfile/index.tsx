@@ -6,6 +6,7 @@ import RequestCard from '@app/components/RequestCard';
 import Slider from '@app/components/Slider';
 import TmdbTitleCard from '@app/components/TitleCard/TmdbTitleCard';
 import ProfileHeader from '@app/components/UserProfile/ProfileHeader';
+import StorageUsageCard from '@app/components/UserProfile/StorageUsage';
 import { Permission, UserType, useUser } from '@app/hooks/useUser';
 import ErrorPage from '@app/pages/_error';
 import defineMessages from '@app/utils/defineMessages';
@@ -285,6 +286,12 @@ const UserProfile = () => {
             </dl>
           </div>
         )}
+      {(user.id === currentUser?.id ||
+        currentHasPermission(Permission.MANAGE_USERS)) && (
+        <div className="relative z-40">
+          <StorageUsageCard userId={user.id} />
+        </div>
+      )}
       {(user.id === currentUser?.id ||
         currentHasPermission(
           [Permission.MANAGE_REQUESTS, Permission.REQUEST_VIEW],

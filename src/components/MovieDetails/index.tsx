@@ -15,6 +15,7 @@ import PlayButton from '@app/components/Common/PlayButton';
 import ReadyEta from '@app/components/Common/ReadyEta';
 import Tag from '@app/components/Common/Tag';
 import Tooltip from '@app/components/Common/Tooltip';
+import DeleteOwnMedia from '@app/components/DeleteOwnMedia';
 import ExternalLinkBlock from '@app/components/ExternalLinkBlock';
 import IssueModal from '@app/components/IssueModal';
 import ManageSlideOver from '@app/components/ManageSlideOver';
@@ -652,6 +653,13 @@ const MovieDetails = ({ movie }: MovieDetailsProps) => {
             media={data.mediaInfo}
             tmdbId={data.id}
             onUpdate={() => revalidate()}
+          />
+          <DeleteOwnMedia
+            mediaId={data.mediaInfo?.id}
+            status={data.mediaInfo?.status}
+            title={data.title}
+            backdropPath={data.backdropPath}
+            onDeleted={() => revalidate()}
           />
           {(data.mediaInfo?.status === MediaStatus.AVAILABLE ||
             (settings.currentSettings.movie4kEnabled &&

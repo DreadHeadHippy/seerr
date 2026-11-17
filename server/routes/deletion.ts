@@ -6,13 +6,16 @@ import { MediaType } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
 import DeletionRequest from '@server/entity/DeletionRequest';
 import Media from '@server/entity/Media';
+import type {
+  DeletionOptions,
+  SerializedDeletionRequest,
+} from '@server/interfaces/api/deletionInterfaces';
 import {
   approveDeletion,
   deleteMedia,
   deletionModeFor,
   loadOwnership,
   requestDeletion,
-  type Ownership,
 } from '@server/lib/deletion';
 import { Permission } from '@server/lib/permissions';
 import logger from '@server/logger';
@@ -22,16 +25,8 @@ import { Router } from 'express';
 
 const deletionRoutes = Router();
 
-export type SerializedDeletionRequest = ReturnType<typeof serialize>;
-
-export interface DeletionOptions extends Ownership {
-  mode: DeletionMode;
-  /** Their pending request for this title, if any. */
-  pending?: SerializedDeletionRequest | null;
-}
-
 /** Users without their private fields. */
-const serialize = (request: DeletionRequest) => ({
+const serialize = (request: DeletionRequest): SerializedDeletionRequest => ({
   ...request,
   requestedBy: request.requestedBy?.filter(),
   modifiedBy: request.modifiedBy?.filter() ?? null,

@@ -3,6 +3,7 @@ import Header from '@app/components/Common/Header';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import PageTitle from '@app/components/Common/PageTitle';
 import Tooltip from '@app/components/Common/Tooltip';
+import DeletionRequests from '@app/components/RequestList/DeletionRequests';
 import RequestItem from '@app/components/RequestList/RequestItem';
 import { useUpdateQueryParams } from '@app/hooks/useUpdateQueryParams';
 import { Permission, useUser } from '@app/hooks/useUser';
@@ -309,6 +310,10 @@ const RequestList = () => {
             </span>
           </div>
         )}
+
+      {!router.query.userId && !router.pathname.startsWith('/profile') && (
+        <DeletionRequests />
+      )}
 
       {data.results.map((request) => {
         return (

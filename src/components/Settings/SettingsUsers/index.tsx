@@ -41,6 +41,15 @@ const messages = defineMessages('components.Settings.SettingsUsers', {
     'Automatically grant Request Movies, Request Series and Request Music based on the libraries shared with each Plex user (for example by Wizarr). Checked on sign-in and hourly; admins are never changed.',
   movieRequestLimitLabel: 'Global Movie Request Limit',
   tvRequestLimitLabel: 'Global Series Request Limit',
+  storageLimitLabel: 'Default Storage Limit',
+  storageLimitTip:
+    "GB a user's requests may take up on disk, split between everyone who requested the same title. 0 is unlimited. Can be set per user.",
+  deletionModeLabel: 'Default Deletion',
+  deletionModeTip:
+    'What users can do with media they requested. Shared titles always need your approval. Can be set per user.',
+  deletionNone: 'Nothing',
+  deletionRequest: 'Ask an admin to delete',
+  deletionDirect: 'Delete it themselves',
   defaultPermissions: 'Default Permissions',
   defaultPermissionsTip: 'Initial permissions assigned to new users',
   disabledMediaServerLoginWarning:
@@ -118,6 +127,8 @@ const SettingsUsers = () => {
             movieQuotaDays: data?.defaultQuotas.movie.quotaDays ?? 7,
             tvQuotaLimit: data?.defaultQuotas.tv.quotaLimit ?? 0,
             tvQuotaDays: data?.defaultQuotas.tv.quotaDays ?? 7,
+            defaultStorageLimitGb: data?.defaultStorageLimitGb ?? 0,
+            defaultDeletionMode: data?.defaultDeletionMode ?? 'none',
             defaultPermissions: data?.defaultPermissions ?? 0,
           }}
           validationSchema={schema}
@@ -139,6 +150,11 @@ const SettingsUsers = () => {
                     quotaDays: values.tvQuotaDays,
                   },
                 },
+                defaultStorageLimitGb: Math.max(
+                  0,
+                  Math.round(Number(values.defaultStorageLimitGb) || 0)
+                ),
+                defaultDeletionMode: values.defaultDeletionMode,
                 defaultPermissions: values.defaultPermissions,
               });
               mutate('/api/v1/settings/public');
@@ -308,6 +324,53 @@ const SettingsUsers = () => {
                       defaultDays={values.tvQuotaDays}
                       defaultLimit={values.tvQuotaLimit}
                     />
+                  </div>
+                </div>
+                <div className="form-row">
+                  <label htmlFor="defaultStorageLimitGb" className="text-label">
+                    {intl.formatMessage(messages.storageLimitLabel)}
+                    <span className="label-tip">
+                      {intl.formatMessage(messages.storageLimitTip)}
+                    </span>
+                  </label>
+                  <div className="form-input-area">
+                    <div className="form-input-field">
+                      <Field
+                        id="defaultStorageLimitGb"
+                        name="defaultStorageLimitGb"
+                        type="number"
+                        min={0}
+                        inputMode="numeric"
+                        className="short"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="form-row">
+                  <label htmlFor="defaultDeletionMode" className="text-label">
+                    {intl.formatMessage(messages.deletionModeLabel)}
+                    <span className="label-tip">
+                      {intl.formatMessage(messages.deletionModeTip)}
+                    </span>
+                  </label>
+                  <div className="form-input-area">
+                    <div className="form-input-field">
+                      <Field
+                        as="select"
+                        id="defaultDeletionMode"
+                        name="defaultDeletionMode"
+                      >
+                        <option value="none">
+                          {intl.formatMessage(messages.deletionNone)}
+                        </option>
+                        <option value="request">
+                          {intl.formatMessage(messages.deletionRequest)}
+                        </option>
+                        <option value="direct">
+                          {intl.formatMessage(messages.deletionDirect)}
+                        </option>
+                      </Field>
+                    </div>
                   </div>
                 </div>
                 <div

@@ -17,6 +17,7 @@ import ReadyEta from '@app/components/Common/ReadyEta';
 import StatusBadgeMini from '@app/components/Common/StatusBadgeMini';
 import Tag from '@app/components/Common/Tag';
 import Tooltip from '@app/components/Common/Tooltip';
+import DeleteOwnMedia from '@app/components/DeleteOwnMedia';
 import ExternalLinkBlock from '@app/components/ExternalLinkBlock';
 import IssueModal from '@app/components/IssueModal';
 import ManageSlideOver from '@app/components/ManageSlideOver';
@@ -764,6 +765,13 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
             media={data?.mediaInfo}
             isShowComplete={isComplete}
             is4kShowComplete={is4kComplete}
+          />
+          <DeleteOwnMedia
+            mediaId={data.mediaInfo?.id}
+            status={data.mediaInfo?.status}
+            title={data.name}
+            backdropPath={data.backdropPath}
+            onDeleted={() => revalidate()}
           />
           {(data.mediaInfo?.status === MediaStatus.AVAILABLE ||
             data.mediaInfo?.status === MediaStatus.PARTIALLY_AVAILABLE ||

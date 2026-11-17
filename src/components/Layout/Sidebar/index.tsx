@@ -1,6 +1,7 @@
 import Badge from '@app/components/Common/Badge';
 import { useInProgress } from '@app/components/InProgress';
 import VersionStatus from '@app/components/Layout/VersionStatus';
+import { useDeletionRequests } from '@app/components/RequestList/DeletionRequests';
 import useClickOutside from '@app/hooks/useClickOutside';
 import type { BrowseSection } from '@app/hooks/useMediaAccess';
 import useMediaAccess, { isSectionVisible } from '@app/hooks/useMediaAccess';
@@ -159,6 +160,11 @@ const Sidebar = ({
   // Downloading or importing. Searches and unreleased titles can sit for
   // ages, so they aren't counted.
   const { data: inProgress } = useInProgress(60 * 1000);
+  // Deletion requests wait on admins too; counted with the requests.
+  const { data: deletions } = useDeletionRequests(
+    hasPermission(Permission.MANAGE_REQUESTS)
+  );
+  const requestsCount = pendingRequestsCount + (deletions?.pending ?? 0);
   const activeCount = (inProgress?.results ?? []).filter(
     (item) => item.phase === 'downloading' || item.phase === 'importing'
   ).length;
@@ -317,7 +323,7 @@ const Sidebar = ({
                         menuMessages[sidebarLink.messagesKey]
                       )}
                       {sidebarLink.messagesKey === 'requests' &&
-                        pendingRequestsCount > 0 &&
+                        requestsCount > 0 &&
                         hasPermission(Permission.MANAGE_REQUESTS) && (
                           <div className="ml-auto flex">
                             <Badge
@@ -327,7 +333,7 @@ const Sidebar = ({
                                   : 'border-indigo-500 from-indigo-600 to-purple-600'
                               }`}
                             >
-                              {pendingRequestsCount}
+                              {requestsCount}
                             </Badge>
                           </div>
                         )}
