@@ -60,13 +60,30 @@ describe('parseArrWebhook', () => {
 
   it('reads imports, with or without a download id', () => {
     assert.deepEqual(
-      parseArrWebhook('radarr', { eventType: 'Download', downloadId: 'XY' }),
-      { type: 'import', downloadId: 'xy' }
+      parseArrWebhook('radarr', {
+        eventType: 'Download',
+        downloadId: 'XY',
+        movie: { id: 4 },
+      }),
+      { type: 'import', downloadId: 'xy', externalId: 4, seasons: [] }
     );
-    assert.deepEqual(parseArrWebhook('sonarr', { eventType: 'Download' }), {
-      type: 'import',
-      downloadId: undefined,
-    });
+    assert.deepEqual(
+      parseArrWebhook('sonarr', {
+        eventType: 'Download',
+        series: { id: 9 },
+        episodes: [
+          { seasonNumber: 2 },
+          { seasonNumber: 2 },
+          { seasonNumber: 3 },
+        ],
+      }),
+      {
+        type: 'import',
+        downloadId: undefined,
+        externalId: 9,
+        seasons: [2, 3],
+      }
+    );
     assert.equal(
       parseArrWebhook('sonarr', { eventType: 'ImportComplete' }).type,
       'import'

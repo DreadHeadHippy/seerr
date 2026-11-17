@@ -223,6 +223,10 @@ class Media {
   public hasActiveRequest?: boolean;
   public downloadStatus?: DownloadingItem[] = [];
   public downloadStatus4k?: DownloadingItem[] = [];
+  /** Recently imported by the *arr; waiting for the media server. */
+  public downloadImporting?: boolean;
+  /** Series: the seasons recently imported. */
+  public importingSeasons?: number[];
 
   public mediaUrl?: string;
   public mediaUrl4k?: string;
@@ -385,6 +389,11 @@ class Media {
           this.serviceId,
           this.externalServiceId
         );
+        this.downloadImporting = downloadTracker.isImporting(
+          'radarr',
+          this.serviceId,
+          this.externalServiceId
+        );
       }
 
       if (
@@ -411,6 +420,11 @@ class Media {
           this.serviceId,
           this.externalServiceId
         );
+        this.importingSeasons = downloadTracker.importingSeasons(
+          this.serviceId,
+          this.externalServiceId
+        );
+        this.downloadImporting = this.importingSeasons.length > 0;
       }
 
       if (

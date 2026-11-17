@@ -66,6 +66,12 @@ export type LiveSnapshot = Record<
  */
 const FAST_LIVE_MS = 1500;
 
+/**
+ * How long an import counts as "importing" (until the library has it).
+ * Cards stop showing it as soon as the media turns available.
+ */
+const IMPORTING_FOR_MS = 30 * 60 * 1000;
+
 /** A webhook grab that never shows up in the queue is dropped after this. */
 const GRAB_TTL_MS = 15 * 60 * 1000;
 
@@ -86,6 +92,8 @@ class DownloadTracker {
   /** Finished torrents whose *arr we already asked to import. */
   private nudged = new Set<string>();
   private resyncTimer?: ReturnType<typeof setTimeout>;
+  /** Recent imports by service:serverId:externalId, with Sonarr's seasons. */
+  private imports = new Map<string, { at: number; seasons: Set<number> }>();
   private warnedNoQbit = false;
   /** Browsers watching live progress (GET /downloads/live). */
   private liveListeners = new Set<(live: LiveSnapshot) => void>();
@@ -165,13 +173,57 @@ class DownloadTracker {
     await this.updateLiveProgress();
   }
 
+  /**
+   * Whether an *arr recently imported this movie or series, so it's waiting
+   * on the library rather than still being searched for.
+   */
+  public isImporting(
+    service: ArrService,
+    serverId: number,
+    externalId: number
+  ): boolean {
+    const entry = this.imports.get(`${service}:${serverId}:${externalId}`);
+    return !!entry && Date.now() - entry.at < IMPORTING_FOR_MS;
+  }
+
+  /** The seasons of a series Sonarr recently imported. */
+  public importingSeasons(serverId: number, externalId: number): number[] {
+    const entry = this.imports.get(`sonarr:${serverId}:${externalId}`);
+
+    return entry && Date.now() - entry.at < IMPORTING_FOR_MS
+      ? [...entry.seasons]
+      : [];
+  }
+
   /** An *arr imported a download: stop tracking it and look for it. */
   public markImported(
     service: ArrService,
     serverId: number,
-    downloadId?: string
+    {
+      downloadId,
+      externalId,
+      seasons = [],
+    }: { downloadId?: string; externalId?: number; seasons?: number[] }
   ) {
     const hash = lower(downloadId);
+    const now = Date.now();
+
+    if (externalId !== undefined) {
+      const key = `${service}:${serverId}:${externalId}`;
+      const previous = this.imports.get(key);
+      const fresh = previous && now - previous.at < IMPORTING_FOR_MS;
+
+      this.imports.set(key, {
+        at: now,
+        seasons: new Set([...(fresh ? previous.seasons : []), ...seasons]),
+      });
+
+      for (const [entryKey, entry] of this.imports) {
+        if (now - entry.at >= IMPORTING_FOR_MS) {
+          this.imports.delete(entryKey);
+        }
+      }
+    }
 
     if (hash) {
       this.grabs.delete(hash);
@@ -204,6 +256,7 @@ class DownloadTracker {
     this.grabs = new Map();
     this.live = new Map();
     this.nudged = new Set();
+    this.imports = new Map();
   }
 
   public async updateDownloads() {

@@ -6,6 +6,7 @@ import {
   formatSeasonRanges,
   seasonProgress,
   seriesProgress,
+  stallReason,
   torrentProgress,
   withLiveTorrents,
 } from './seasonProgress';
@@ -206,5 +207,35 @@ describe('withLiveTorrents', () => {
     assert.equal(matched.sizeLeft, 100);
     assert.equal(matched.size, 2000);
     assert.equal(other.sizeLeft, 500);
+  });
+});
+
+describe('stallReason', () => {
+  it('is undefined while everything has an ETA or is done', () => {
+    assert.equal(
+      stallReason([
+        item({ downloadId: 'a', etaInMs: 10 }),
+        item({ downloadId: 'b', status: 'completed', sizeLeft: 0 }),
+      ]),
+      undefined
+    );
+  });
+
+  it('names paused and queued only when every unfinished one is', () => {
+    assert.equal(
+      stallReason([item({ downloadId: 'a', status: 'paused' })]),
+      'paused'
+    );
+    assert.equal(
+      stallReason([item({ downloadId: 'a', status: 'queued' })]),
+      'queued'
+    );
+    assert.equal(
+      stallReason([
+        item({ downloadId: 'a', status: 'queued' }),
+        item({ downloadId: 'b' }),
+      ]),
+      'stalled'
+    );
   });
 });

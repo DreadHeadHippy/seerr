@@ -65,7 +65,7 @@ arrWebhookRoutes.post('/:service/:serverId', async (req, res) => {
         serverId,
         downloadId: event.downloadId,
       });
-      downloadTracker.markImported(service, serverId, event.downloadId);
+      downloadTracker.markImported(service, serverId, event);
       break;
     case 'test':
       logger.info(`Test webhook received from ${service} server ${serverId}`, {

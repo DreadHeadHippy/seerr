@@ -23,6 +23,9 @@ export interface ProgressDownload {
  */
 export type SeasonPhase = 'available' | 'importing' | 'downloading' | 'waiting';
 
+/** Why a download has no ETA. */
+export type StallReason = 'paused' | 'queued' | 'stalled';
+
 export interface SeasonProgress {
   seasonNumber: number;
   phase: SeasonPhase;
@@ -30,7 +33,39 @@ export interface SeasonProgress {
   progress: number;
   /** Milliseconds until its last torrent finishes; undefined if unknown. */
   etaMs?: number;
+  /** Downloading but without an ETA: why. */
+  stalled?: StallReason;
 }
+
+/**
+ * Why these downloads have no ETA, or undefined if they're all moving or
+ * done. Paused or queued only when every unfinished one is; otherwise
+ * stalled (no peers, no speed, or a client warning).
+ */
+export const stallReason = (
+  downloads: ProgressDownload[]
+): StallReason | undefined => {
+  const unfinished = downloads.filter((d) => d.status !== 'completed');
+  const noEta = unfinished.filter(
+    (d) =>
+      !d.estimatedCompletionTime ||
+      !Number.isFinite(new Date(d.estimatedCompletionTime).getTime())
+  );
+
+  if (noEta.length === 0) {
+    return undefined;
+  }
+
+  if (unfinished.every((d) => d.status === 'paused')) {
+    return 'paused';
+  }
+
+  if (unfinished.every((d) => d.status === 'queued')) {
+    return 'queued';
+  }
+
+  return 'stalled';
+};
 
 /** The downloads with qBittorrent's latest numbers where it has them. */
 export const withLiveTorrents = <T extends ProgressDownload>(
@@ -183,6 +218,8 @@ export const seasonProgress = (
             phase: 'downloading',
             progress: torrents.progress,
             etaMs: torrents.etaMs,
+            stalled:
+              torrents.etaMs === undefined ? stallReason(own) : undefined,
           };
     }
 

@@ -1,4 +1,5 @@
 import Badge from '@app/components/Common/Badge';
+import { useInProgress } from '@app/components/InProgress';
 import VersionStatus from '@app/components/Layout/VersionStatus';
 import useClickOutside from '@app/hooks/useClickOutside';
 import type { BrowseSection } from '@app/hooks/useMediaAccess';
@@ -7,6 +8,7 @@ import { Permission, useUser } from '@app/hooks/useUser';
 import defineMessages from '@app/utils/defineMessages';
 import { Transition, TransitionChild } from '@headlessui/react';
 import {
+  ArrowDownTrayIcon,
   ClockIcon,
   CogIcon,
   ExclamationTriangleIcon,
@@ -30,6 +32,7 @@ export const menuMessages = defineMessages('components.Layout.Sidebar', {
   browsetv: 'Series',
   browsemusic: 'Music',
   requests: 'Requests',
+  inprogress: 'In Progress',
   blocklist: 'Blocklist',
   issues: 'Issues',
   users: 'Users',
@@ -93,6 +96,12 @@ const SidebarLinks: SidebarLinkProps[] = [
     activeRegExp: /^\/requests/,
   },
   {
+    href: '/in-progress',
+    messagesKey: 'inprogress',
+    svgIcon: <ArrowDownTrayIcon className="mr-3 h-6 w-6" />,
+    activeRegExp: /^\/in-progress/,
+  },
+  {
     href: '/blocklist',
     messagesKey: 'blocklist',
     svgIcon: <EyeSlashIcon className="mr-3 h-6 w-6" />,
@@ -147,6 +156,11 @@ const Sidebar = ({
   const { hasPermission } = useUser();
   const mediaAccess = useMediaAccess();
   useClickOutside(navRef, () => setClosed());
+  // Downloading or importing; searches can sit for ages and aren't counted.
+  const { data: inProgress } = useInProgress(60 * 1000);
+  const activeCount = (inProgress?.results ?? []).filter(
+    (item) => item.phase !== 'searching'
+  ).length;
 
   const visibleLinks = SidebarLinks.filter(
     (link) =>
@@ -313,6 +327,20 @@ const Sidebar = ({
                               }`}
                             >
                               {pendingRequestsCount}
+                            </Badge>
+                          </div>
+                        )}
+                      {sidebarLink.messagesKey === 'inprogress' &&
+                        activeCount > 0 && (
+                          <div className="ml-auto flex">
+                            <Badge
+                              className={`rounded-md bg-gradient-to-br ${
+                                router.pathname.match(sidebarLink.activeRegExp)
+                                  ? 'border-indigo-600 from-indigo-700 to-purple-700'
+                                  : 'border-indigo-500 from-indigo-600 to-purple-600'
+                              }`}
+                            >
+                              {activeCount}
                             </Badge>
                           </div>
                         )}

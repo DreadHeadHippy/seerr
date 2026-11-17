@@ -235,12 +235,22 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
       data.seasons.map((season) => season.seasonNumber),
       data.mediaInfo?.seasons ?? [],
       withLiveTorrents(tvDownloads, liveTorrents),
-      seenSeasons,
+      // Imports the server heard about count even if this page never saw
+      // the download.
+      new Set([...seenSeasons, ...(data.mediaInfo?.importingSeasons ?? [])]),
       Date.now()
     )
       .filter(
         (season) =>
-          season.phase === 'downloading' || season.phase === 'importing'
+          season.phase === 'downloading' ||
+          season.phase === 'importing' ||
+          // Requested, nothing grabbed yet: Sonarr is still searching.
+          (season.phase === 'waiting' &&
+            (data.mediaInfo?.seasons ?? []).some(
+              (s) =>
+                s.seasonNumber === season.seasonNumber &&
+                s.status === MediaStatus.PROCESSING
+            ))
       )
       .map((season) => [season.seasonNumber, season])
   );
@@ -964,8 +974,22 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
                               return null;
                             }
 
+                            if (download.phase === 'waiting') {
+                              return (
+                                <span className="whitespace-nowrap text-sm font-medium text-gray-400">
+                                  {intl.formatMessage(
+                                    downloadEtaMessages.searching
+                                  )}
+                                </span>
+                              );
+                            }
+
                             const importing = download.phase === 'importing';
-                            const eta = formatDownloadEta(intl, download.etaMs);
+                            const eta = download.stalled
+                              ? intl.formatMessage(
+                                  downloadEtaMessages[download.stalled]
+                                )
+                              : formatDownloadEta(intl, download.etaMs);
 
                             return (
                               <div className="flex items-center gap-2 whitespace-nowrap text-sm font-medium text-indigo-300">
@@ -981,7 +1005,11 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
                                       )
                                     : `${Math.floor(download.progress * 100)}%`}
                                   {!importing && eta && (
-                                    <span className="hidden sm:inline">
+                                    <span
+                                      className={`hidden sm:inline ${
+                                        download.stalled ? 'text-amber-400' : ''
+                                      }`}
+                                    >
                                       {' · '}
                                       {eta}
                                     </span>

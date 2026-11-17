@@ -2987,6 +2987,35 @@ paths:
           description: Invalid API key
         '404':
           description: No such server configured in Seerr
+  /downloads/active:
+    get:
+      summary: Media in progress
+      description: Movies and series processing (or with a season processing), downloading first, then importing, then still being searched for.
+      tags:
+        - settings
+      responses:
+        '200':
+          description: Media in progress
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: number
+                        tmdbId:
+                          type: number
+                        mediaType:
+                          type: string
+                          enum: [movie, tv]
+                        phase:
+                          type: string
+                          enum: [downloading, importing, searching]
   /downloads/live:
     get:
       summary: Live download progress

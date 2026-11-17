@@ -6,6 +6,7 @@ import useMediaAccess, { isSectionVisible } from '@app/hooks/useMediaAccess';
 import { Permission, useUser } from '@app/hooks/useUser';
 import { Transition } from '@headlessui/react';
 import {
+  ArrowDownTrayIcon,
   ClockIcon,
   CogIcon,
   EllipsisHorizontalIcon,
@@ -18,6 +19,7 @@ import {
   UsersIcon,
 } from '@heroicons/react/24/outline';
 import {
+  ArrowDownTrayIcon as FilledArrowDownTrayIcon,
   ClockIcon as FilledClockIcon,
   CogIcon as FilledCogIcon,
   ExclamationTriangleIcon as FilledExclamationTriangleIcon,
@@ -115,6 +117,13 @@ const MobileMenu = ({
       svgIcon: <ClockIcon className="h-6 w-6" />,
       svgIconSelected: <FilledClockIcon className="h-6 w-6" />,
       activeRegExp: /^\/requests/,
+    },
+    {
+      href: '/in-progress',
+      content: intl.formatMessage(menuMessages.inprogress),
+      svgIcon: <ArrowDownTrayIcon className="h-6 w-6" />,
+      svgIconSelected: <FilledArrowDownTrayIcon className="h-6 w-6" />,
+      activeRegExp: /^\/in-progress/,
     },
     {
       href: '/blocklist',

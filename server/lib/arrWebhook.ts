@@ -27,8 +27,15 @@ export interface ArrGrab {
 
 export type ArrWebhookEvent =
   | ArrGrab
-  /** Manual imports have no download id. */
-  | { type: 'import'; downloadId?: string }
+  | {
+      type: 'import';
+      /** Manual imports have no download id. */
+      downloadId?: string;
+      /** The *arr's id for the movie or series. */
+      externalId?: number;
+      /** Sonarr: the seasons imported. */
+      seasons: number[];
+    }
   | { type: 'test' }
   | { type: 'ignored'; eventType: string };
 
@@ -80,7 +87,26 @@ export const parseArrWebhook = (
   }
 
   if (IMPORT_EVENTS.has(eventType)) {
-    return { type: 'import', downloadId };
+    return {
+      type: 'import',
+      downloadId,
+      externalId:
+        service === 'radarr'
+          ? body.movie?.id
+          : service === 'sonarr'
+            ? body.series?.id
+            : undefined,
+      seasons:
+        service === 'sonarr'
+          ? [
+              ...new Set(
+                (body.episodes ?? [])
+                  .map((episode) => episode.seasonNumber)
+                  .filter((n): n is number => n !== undefined)
+              ),
+            ]
+          : [],
+    };
   }
 
   if (eventType !== 'Grab' || !downloadId) {

@@ -24,6 +24,7 @@ import {
   formatSeasonRanges,
   seasonProgress,
   seriesProgress,
+  stallReason,
   torrentProgress,
   withLiveTorrents,
 } from '@app/utils/seasonProgress';
@@ -66,6 +67,14 @@ interface TitleCardProps {
   isAddedToWatchlist?: number | boolean;
   mutateParent?: () => void;
 }
+
+/** ETA tag colours: counting down, waiting on the *arr, or stuck. */
+type EtaTone = 'eta' | 'muted' | 'warn';
+const ETA_TONES: Record<EtaTone, string> = {
+  eta: 'border-indigo-500 bg-indigo-600/80',
+  muted: 'border-gray-500 bg-gray-600/80',
+  warn: 'border-amber-500 bg-amber-600/80',
+};
 
 const messages = defineMessages('components.TitleCard', {
   addToWatchList: 'Add to watchlist',
@@ -150,8 +159,11 @@ const TitleCard = ({
   // Only the card's own fetch counts. The list's `downloads` can be a cached
   // page from long ago (0%, an ETA of hours) and only says to start following.
   const activeDownloads = latest?.mediaInfo?.downloadStatus ?? [];
+  // The server knows when the *arr imported it, even if this card never saw
+  // the download (opened afterwards).
+  const serverImporting = !!latest?.mediaInfo?.downloadImporting;
   const importing =
-    sawDownload &&
+    (sawDownload || serverImporting) &&
     activeDownloads.length === 0 &&
     currentStatus === MediaStatus.PROCESSING;
 
@@ -195,7 +207,7 @@ const TitleCard = ({
         followedSeasons(tvInfo.requests ?? [], liveDownloads),
         tvInfo.seasons ?? [],
         liveDownloads,
-        seenSeasons,
+        new Set([...seenSeasons, ...(tvInfo.importingSeasons ?? [])]),
         now
       )
     : [];
@@ -207,35 +219,76 @@ const TitleCard = ({
       importing ||
       // Some seasons in, others still to come.
       (!!series &&
-        sawDownload &&
+        (sawDownload || serverImporting) &&
         seasons.some((season) => season.phase !== 'available')));
   const ringImporting = series ? series.importing : importing || live.done;
 
-  const etaLabel = (() => {
+  // A requested season Sonarr hasn't grabbed anything for yet.
+  const searchingSeason = seasons.some(
+    (season) =>
+      season.phase === 'waiting' &&
+      (tvInfo?.seasons ?? []).some(
+        (s) =>
+          s.seasonNumber === season.seasonNumber &&
+          s.status === MediaStatus.PROCESSING
+      )
+  );
+  const etaTag = ((): { text: string; tone: EtaTone } | undefined => {
+    const searching = {
+      text: intl.formatMessage(downloadEtaMessages.searching),
+      tone: 'muted' as const,
+    };
+
     if (!showRing) {
-      return undefined;
+      // Only from the card's own fetch: the list's copy may be old.
+      return latest &&
+        (currentStatus === MediaStatus.PROCESSING || searchingSeason)
+        ? searching
+        : undefined;
     }
 
     if (ringImporting) {
-      return intl.formatMessage(downloadEtaMessages.importing);
+      return {
+        text: intl.formatMessage(downloadEtaMessages.importing),
+        tone: 'eta',
+      };
     }
 
-    // Short, to fit beside the type tag on a narrow card. Which seasons are
-    // in shows on the ring; say so here only when there's no ETA.
+    // Short, to fit beside the type tag on a narrow card.
     const eta = formatDownloadEtaShort(
       intl,
       series ? series.etaMs : live.etaMs
     );
 
-    return (
-      eta ??
-      (series && series.ready.length > 0
-        ? intl.formatMessage(downloadEtaMessages.seasonsReady, {
-            seasons: formatSeasonRanges(series.ready),
-          })
-        : undefined)
-    );
+    if (eta) {
+      return { text: eta, tone: 'eta' };
+    }
+
+    const stalled = series
+      ? seasons.find((season) => season.stalled)?.stalled
+      : stallReason(liveDownloads);
+
+    if (stalled) {
+      return {
+        text: intl.formatMessage(downloadEtaMessages[stalled]),
+        tone: 'warn',
+      };
+    }
+
+    // Which seasons are in shows on the ring; say so here only when
+    // there's nothing else to say.
+    if (series && series.ready.length > 0) {
+      return {
+        text: intl.formatMessage(downloadEtaMessages.seasonsReady, {
+          seasons: formatSeasonRanges(series.ready),
+        }),
+        tone: 'eta',
+      };
+    }
+
+    return searchingSeason ? searching : undefined;
   })();
+  const etaLabel = etaTag?.text;
   /** Just became available while on screen: a big check, briefly. */
   const [justAvailable, setJustAvailable] = useState(false);
 
@@ -596,10 +649,12 @@ const TitleCard = ({
                       : intl.formatMessage(globalMessages.tvshow)}
                 </div>
               </div>
-              {etaLabel && (
-                <div className="min-w-0 rounded-full border border-indigo-500 bg-indigo-600/80 shadow-md">
+              {etaTag && (
+                <div
+                  className={`min-w-0 rounded-full border shadow-md ${ETA_TONES[etaTag.tone]}`}
+                >
                   <div className="flex h-4 items-center px-1.5 py-2 text-[10px] font-medium text-white sm:h-5">
-                    <span className="truncate">{etaLabel}</span>
+                    <span className="truncate">{etaTag.text}</span>
                   </div>
                 </div>
               )}
