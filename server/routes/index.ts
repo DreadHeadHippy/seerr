@@ -28,6 +28,7 @@ import { getAppVersion, getCommitTag } from '@server/utils/appVersion';
 import restartFlag from '@server/utils/restartFlag';
 import { isPerson } from '@server/utils/typeHelpers';
 import { Router } from 'express';
+import arrWebhookRoutes from './arrWebhook';
 import authRoutes from './auth';
 import blocklistRoutes from './blocklist';
 import collectionRoutes from './collection';
@@ -111,6 +112,8 @@ router.get('/status/appdata', (_req, res) => {
 });
 
 router.use('/user', isAuthenticated(), user);
+// Authenticated by the API key in the URL; see the route.
+router.use('/arr-webhook', arrWebhookRoutes);
 router.get('/settings/public', async (req, res) => {
   const settings = getSettings();
 

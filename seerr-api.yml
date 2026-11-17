@@ -2948,6 +2948,45 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/LastfmSettings'
+  /arr-webhook/{service}/{serverId}:
+    post:
+      summary: Receive a Radarr, Sonarr or Lidarr webhook
+      description: Point an *arr Webhook connection (On Grab and On Import) here so downloads are tracked the moment they are grabbed and media is scanned as soon as it is imported. Authenticated by the API key in the query string, since the *arrs cannot send the X-Api-Key header.
+      security: []
+      tags:
+        - settings
+      parameters:
+        - in: path
+          name: service
+          required: true
+          schema:
+            type: string
+            enum: [radarr, sonarr, lidarr]
+        - in: path
+          name: serverId
+          required: true
+          description: The server's id in Seerr's settings.
+          schema:
+            type: number
+        - in: query
+          name: apiKey
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Webhook received
+        '403':
+          description: Invalid API key
+        '404':
+          description: No such server configured in Seerr
   /settings/qbittorrent:
     get:
       summary: Get qBittorrent settings

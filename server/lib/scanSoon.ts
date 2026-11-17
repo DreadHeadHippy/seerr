@@ -8,19 +8,33 @@ import logger from '@server/logger';
  */
 const SCAN_DELAY_MS = 2 * 60 * 1000;
 
+/**
+ * After an *arr says it imported something: just the media server noticing
+ * the new files.
+ */
+export const IMPORTED_SCAN_DELAY_MS = 30 * 1000;
+
 let timer: ReturnType<typeof setTimeout> | undefined;
+let dueAt = 0;
 
 /**
  * Runs a recently added scan shortly, so a finished download shows as
  * available (and requesters are notified) without waiting for the next
- * scheduled scan. Calls in quick succession share one scan, and a scan that
- * is already running is left alone.
+ * scheduled scan. Calls in quick succession share one scan (the earliest
+ * asked for), and a scan that is already running is left alone.
  */
-export const scanMediaServerSoon = (): void => {
+export const scanMediaServerSoon = (delayMs = SCAN_DELAY_MS): void => {
+  const due = Date.now() + delayMs;
+
   if (timer) {
-    return;
+    if (due >= dueAt) {
+      return;
+    }
+
+    clearTimeout(timer);
   }
 
+  dueAt = due;
   timer = setTimeout(async () => {
     timer = undefined;
 
@@ -52,7 +66,7 @@ export const scanMediaServerSoon = (): void => {
         errorMessage: e.message,
       });
     }
-  }, SCAN_DELAY_MS);
+  }, delayMs);
 };
 
 /** Whether any download in `previous` is no longer in the queue. */

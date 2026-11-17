@@ -1,5 +1,6 @@
 import type LidarrAPI from '@server/api/servarr/lidarr';
 import type { MusicDownload } from '@server/interfaces/api/musicInterfaces';
+import downloadTracker from '@server/lib/downloadtracker';
 import { fetchLiveProgress } from '@server/lib/liveDownloads';
 import logger from '@server/logger';
 
@@ -82,8 +83,18 @@ export const getMusicDownloads = async (
 ): Promise<MusicDownloads> => {
   try {
     const queue = await lidarr.getDownloadQueue();
+    // Grabs Lidarr announced by webhook that its queue doesn't list yet.
+    const queued = new Set(
+      queue.map((item) => item.downloadId?.toLowerCase()).filter(Boolean)
+    );
+    const grabs = downloadTracker
+      .getLidarrGrabs()
+      .filter((grab) => !queued.has(grab.downloadId));
     // Lidarr's queue lags its download client; qBittorrent's numbers don't.
-    const live = await fetchLiveProgress(queue.map((item) => item.downloadId));
+    const live = await fetchLiveProgress([
+      ...queue.map((item) => item.downloadId),
+      ...grabs.map((grab) => grab.downloadId),
+    ]);
     const now = Date.now();
     const albums = new Map<string, Tally>();
     const artists = new Map<string, Tally>();
@@ -114,6 +125,25 @@ export const getMusicDownloads = async (
 
       add(albums, item.album?.foreignAlbumId, size, sizeleft, readyAt);
       add(artists, item.artist?.foreignArtistId, size, sizeleft, readyAt);
+    }
+
+    for (const grab of grabs) {
+      const torrent = live.get(grab.downloadId);
+      const size = torrent?.size ?? grab.size;
+      const sizeleft = torrent?.sizeLeft ?? grab.size;
+      const eta = torrent?.estimatedCompletionTime?.getTime();
+      const readyAt =
+        torrent?.status === 'completed'
+          ? now + IMPORT_BUFFER_MS
+          : eta !== undefined
+            ? Math.max(eta, now) + IMPORT_BUFFER_MS
+            : undefined;
+
+      for (const albumId of grab.albumIds) {
+        add(albums, albumId, size, sizeleft, readyAt);
+      }
+
+      add(artists, grab.artistId, size, sizeleft, readyAt);
     }
 
     return { albums: finish(albums), artists: finish(artists) };
