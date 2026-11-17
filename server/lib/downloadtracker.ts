@@ -49,6 +49,23 @@ interface Owner {
   serverId: number;
 }
 
+/** Live progress by lowercase torrent hash, as sent to browsers. */
+export type LiveSnapshot = Record<
+  string,
+  {
+    size: number;
+    sizeLeft: number;
+    status: string;
+    estimatedCompletionTime?: string;
+  }
+>;
+
+/**
+ * How often qBittorrent is read while someone is watching: about as often
+ * as its own web UI refreshes.
+ */
+const FAST_LIVE_MS = 1500;
+
 /** A webhook grab that never shows up in the queue is dropped after this. */
 const GRAB_TTL_MS = 15 * 60 * 1000;
 
@@ -70,6 +87,10 @@ class DownloadTracker {
   private nudged = new Set<string>();
   private resyncTimer?: ReturnType<typeof setTimeout>;
   private warnedNoQbit = false;
+  /** Browsers watching live progress (GET /downloads/live). */
+  private liveListeners = new Set<(live: LiveSnapshot) => void>();
+  private fastTimer?: ReturnType<typeof setInterval>;
+  private updatingLive = false;
 
   /**
    * The *arr queue's numbers, replaced by qBittorrent's live ones when the
@@ -227,6 +248,23 @@ class DownloadTracker {
    * download client about once a minute.
    */
   public async updateLiveProgress() {
+    // The fast loop and the 10 second one can overlap; one read is enough.
+    if (this.updatingLive) {
+      return;
+    }
+
+    this.updatingLive = true;
+
+    try {
+      await this.readLiveProgress();
+    } finally {
+      this.updatingLive = false;
+    }
+
+    this.notifyLive();
+  }
+
+  private async readLiveProgress() {
     const hashes = [
       ...[
         ...Object.values(this.radarrServers),
@@ -252,6 +290,57 @@ class DownloadTracker {
     this.warnedNoQbit = false;
     this.live = await fetchLiveProgress(hashes);
     this.nudgeFinished();
+  }
+
+  public getLiveSnapshot(): LiveSnapshot {
+    return Object.fromEntries(
+      [...this.live].map(([hash, live]) => [
+        hash,
+        {
+          size: live.size,
+          sizeLeft: live.sizeLeft,
+          status: live.status,
+          estimatedCompletionTime: live.estimatedCompletionTime?.toISOString(),
+        },
+      ])
+    );
+  }
+
+  /**
+   * Calls `listener` with live progress after every qBittorrent read, which
+   * happens every 1.5 seconds while anyone is listening. Returns the
+   * unsubscribe function.
+   */
+  public subscribeLive(listener: (live: LiveSnapshot) => void): () => void {
+    this.liveListeners.add(listener);
+
+    if (!this.fastTimer) {
+      this.fastTimer = setInterval(
+        () => this.updateLiveProgress(),
+        FAST_LIVE_MS
+      );
+    }
+
+    return () => {
+      this.liveListeners.delete(listener);
+
+      if (this.liveListeners.size === 0 && this.fastTimer) {
+        clearInterval(this.fastTimer);
+        this.fastTimer = undefined;
+      }
+    };
+  }
+
+  private notifyLive() {
+    if (this.liveListeners.size === 0) {
+      return;
+    }
+
+    const snapshot = this.getLiveSnapshot();
+
+    for (const listener of this.liveListeners) {
+      listener(snapshot);
+    }
   }
 
   /** Which *arr server each tracked torrent belongs to. */

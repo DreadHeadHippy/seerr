@@ -1,10 +1,13 @@
-import type { DownloadingItem } from '@server/lib/downloadtracker';
-import { useEffect, useState } from 'react';
+import type {
+  DownloadingItem,
+  LiveSnapshot,
+} from '@server/lib/downloadtracker';
+import { useSyncExternalStore } from 'react';
 
 type Download = Pick<
   DownloadingItem,
   'size' | 'sizeLeft' | 'status' | 'estimatedCompletionTime'
->;
+> & { downloadId?: string };
 
 export interface LiveDownloadState {
   /** 0 to 1. */
@@ -15,17 +18,32 @@ export interface LiveDownloadState {
   done: boolean;
 }
 
-/** Never shown as finished until a reading says so. */
-const MAX_GUESSED_PROGRESS = 0.99;
+/** The downloads with qBittorrent's latest numbers where it has them. */
+export const withLiveTorrents = <T extends Download>(
+  downloads: T[],
+  live: LiveSnapshot
+): T[] =>
+  downloads.map((download) => {
+    const torrent = download.downloadId
+      ? live[download.downloadId.toLowerCase()]
+      : undefined;
 
-/**
- * Where these downloads should be `now`, carrying on from the reading taken
- * at `readAt` at the speed its ETA implies. Between the server's readings
- * (every 10 seconds) this keeps the ring filling like qBittorrent's own.
- */
-export const liveDownloadState = (
+    return torrent
+      ? {
+          ...download,
+          size: torrent.size,
+          sizeLeft: torrent.sizeLeft,
+          status: torrent.status,
+          estimatedCompletionTime: torrent.estimatedCompletionTime as
+            | Date
+            | undefined,
+        }
+      : download;
+  });
+
+/** Progress and ETA across these downloads, as reported. */
+export const downloadState = (
   downloads: Download[],
-  readAt: number,
   now: number
 ): LiveDownloadState => {
   let size = 0;
@@ -42,18 +60,15 @@ export const liveDownloadState = (
     }
 
     done = false;
-    const sizeLeft = download.sizeLeft || 0;
+    left += download.sizeLeft || 0;
     const eta = download.estimatedCompletionTime
       ? new Date(download.estimatedCompletionTime).getTime()
       : NaN;
 
-    if (Number.isFinite(eta) && eta > readAt) {
-      const elapsed = Math.max(0, now - readAt);
-      left += Math.max(0, sizeLeft * (1 - elapsed / (eta - readAt)));
+    if (Number.isFinite(eta)) {
       latestEta = Math.max(latestEta, eta);
     } else {
-      // Queued, paused or stalled: no speed to carry on with.
-      left += sizeLeft;
+      // Queued, paused or stalled.
       unknown = true;
     }
   }
@@ -62,51 +77,70 @@ export const liveDownloadState = (
     return { progress: 1, etaMs: 0, done: true };
   }
 
-  const progress = size > 0 ? Math.max(0, 1 - left / size) : 0;
-
   return {
-    progress: Math.min(MAX_GUESSED_PROGRESS, progress),
+    progress: size > 0 ? Math.min(1, Math.max(0, 1 - left / size)) : 0,
     etaMs: unknown || !latestEta ? undefined : Math.max(0, latestEta - now),
     done: false,
   };
 };
 
-/** liveDownloadState, ticking every second while there are downloads. */
-const useLiveDownload = (downloads: Download[]): LiveDownloadState => {
-  const [readAt, setReadAt] = useState(() => Date.now());
-  const [now, setNow] = useState(() => Date.now());
+/*
+ * One EventSource for the whole page, open while any card is showing a
+ * download, so the cards share a single connection.
+ */
+const EMPTY: LiveSnapshot = {};
+let snapshot: LiveSnapshot = EMPTY;
+let source: EventSource | undefined;
+let closeTimer: ReturnType<typeof setTimeout> | undefined;
+const listeners = new Set<() => void>();
 
-  // A new reading arrived: carry on from here. Keyed on the numbers, since
-  // callers build a fresh array each render.
-  const reading = downloads
-    .map(
-      (d) =>
-        `${d.sizeLeft}:${d.status}:${
-          d.estimatedCompletionTime
-            ? new Date(d.estimatedCompletionTime).getTime()
-            : ''
-        }`
-    )
-    .join('|');
+const subscribe = (listener: () => void) => {
+  listeners.add(listener);
+  clearTimeout(closeTimer);
 
-  useEffect(() => {
-    const time = Date.now();
-    setReadAt(time);
-    setNow(time);
-  }, [reading]);
+  if (!source) {
+    source = new EventSource('/api/v1/downloads/live');
+    source.onmessage = (event) => {
+      try {
+        snapshot = JSON.parse(event.data);
+        listeners.forEach((notify) => notify());
+      } catch {
+        // A partial or malformed message; the next one replaces it.
+      }
+    };
+    // EventSource reconnects by itself after errors.
+  }
 
-  const active = downloads.length > 0;
+  return () => {
+    listeners.delete(listener);
 
-  useEffect(() => {
-    if (!active) {
-      return;
+    // Scrolling cards in and out shouldn't reconnect every time.
+    if (listeners.size === 0) {
+      closeTimer = setTimeout(() => {
+        source?.close();
+        source = undefined;
+        snapshot = EMPTY;
+      }, 10 * 1000);
     }
+  };
+};
 
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, [active]);
+const noSubscription = () => () => undefined;
 
-  return liveDownloadState(downloads, readAt, now);
+/**
+ * Progress for these downloads from qBittorrent, pushed live (about every
+ * 1.5 seconds) while `enabled`; the given numbers until the first push.
+ */
+const useLiveDownload = (
+  downloads: Download[],
+  enabled: boolean
+): LiveDownloadState => {
+  const live = useSyncExternalStore(
+    enabled ? subscribe : noSubscription,
+    () => (enabled ? snapshot : EMPTY),
+    () => EMPTY
+  );
+  return downloadState(withLiveTorrents(downloads, live), Date.now());
 };
 
 export default useLiveDownload;

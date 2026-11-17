@@ -151,7 +151,7 @@ const TitleCard = ({
   const showRing =
     (activeDownloads.length > 0 && currentStatus !== MediaStatus.AVAILABLE) ||
     importing;
-  const live = useLiveDownload(showRing ? activeDownloads : []);
+  const live = useLiveDownload(activeDownloads, showRing);
   const etaLabel = (() => {
     if (!showRing) {
       return undefined;

@@ -2987,6 +2987,19 @@ paths:
           description: Invalid API key
         '404':
           description: No such server configured in Seerr
+  /downloads/live:
+    get:
+      summary: Live download progress
+      description: Server-sent events with qBittorrent progress for every tracked download, keyed by lowercase torrent hash. Sends a message whenever it changes; qBittorrent is read every 1.5 seconds while anyone is connected.
+      tags:
+        - settings
+      responses:
+        '200':
+          description: An event stream; each message's data is a JSON object of hash to { size, sizeLeft, status, estimatedCompletionTime }.
+          content:
+            text/event-stream:
+              schema:
+                type: string
   /settings/qbittorrent:
     get:
       summary: Get qBittorrent settings

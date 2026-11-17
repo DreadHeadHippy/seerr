@@ -44,8 +44,9 @@ const DownloadRing = ({ progress, importing = false }: DownloadRingProps) => {
           strokeLinecap="round"
           strokeDasharray={CIRCUMFERENCE}
           strokeDashoffset={CIRCUMFERENCE * (1 - shown)}
-          // Updated every second; a matching linear glide keeps it smooth.
-          className="stroke-indigo-400 transition-[stroke-dashoffset] duration-1000 ease-linear"
+          // Readings arrive about every 1.5s; gliding between them keeps it
+          // smooth without running ahead of qBittorrent.
+          className="stroke-indigo-400 transition-[stroke-dashoffset] duration-[1500ms] ease-linear"
         />
       </svg>
       <span className="absolute inset-0 flex items-center justify-center text-sm font-semibold text-white sm:text-base">

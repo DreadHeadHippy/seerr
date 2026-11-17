@@ -94,8 +94,8 @@ const getClient = (): QbittorrentAPI | undefined => {
 export const isLiveTrackingEnabled = (): boolean =>
   !!getSettings().qbittorrent?.url;
 
-/** Same hashes within a few seconds share one qBittorrent call. */
-const CACHE_MS = 5 * 1000;
+/** Same hashes within a second share one qBittorrent call. */
+const CACHE_MS = 1000;
 let recent:
   | { key: string; at: number; result: Promise<Map<string, LiveProgress>> }
   | undefined;

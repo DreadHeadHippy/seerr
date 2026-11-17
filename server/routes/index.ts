@@ -33,6 +33,7 @@ import authRoutes from './auth';
 import blocklistRoutes from './blocklist';
 import collectionRoutes from './collection';
 import discoverRoutes, { createTmdbWithRegionLanguage } from './discover';
+import downloadRoutes from './downloads';
 import issueRoutes from './issue';
 import issueCommentRoutes from './issueComment';
 import mediaRoutes from './media';
@@ -114,6 +115,7 @@ router.get('/status/appdata', (_req, res) => {
 router.use('/user', isAuthenticated(), user);
 // Authenticated by the API key in the URL; see the route.
 router.use('/arr-webhook', arrWebhookRoutes);
+router.use('/downloads', isAuthenticated(), downloadRoutes);
 router.get('/settings/public', async (req, res) => {
   const settings = getSettings();
 
