@@ -1,4 +1,4 @@
-import DeezerAPI from '@server/api/deezer';
+import { getDeezer } from '@server/api/deezer';
 import type LastfmAPI from '@server/api/lastfm';
 import type { LastfmArtist } from '@server/api/lastfm';
 import type ListenbrainzAPI from '@server/api/listenbrainz';
@@ -118,7 +118,7 @@ const mapWithConcurrency = async <T, R>(
 export const fillMissingArtwork = async (
   results: MusicArtistResult[]
 ): Promise<MusicArtistResult[]> => {
-  const deezer = new DeezerAPI();
+  const deezer = getDeezer();
 
   return mapWithConcurrency(results, LOOKUP_CONCURRENCY, async (artist) => {
     if (artist.posterUrl) {

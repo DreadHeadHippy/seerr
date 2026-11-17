@@ -1,4 +1,4 @@
-import DeezerAPI from '@server/api/deezer';
+import { getDeezer } from '@server/api/deezer';
 import LastfmAPI from '@server/api/lastfm';
 import ListenbrainzAPI from '@server/api/listenbrainz';
 import LidarrAPI, {
@@ -217,7 +217,7 @@ musicRoutes.get<never, MusicPreviewResponse, never, { artist?: string }>(
     try {
       return res
         .status(200)
-        .json({ tracks: await new DeezerAPI().getTopTracks(artist) });
+        .json({ tracks: await getDeezer().getTopTracks(artist) });
     } catch (e) {
       logger.error('Failed to load artist preview tracks', {
         label: 'Music Discovery',

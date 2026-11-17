@@ -1,3 +1,4 @@
+import { encodeURIExtraParams } from '@app/hooks/useDiscover';
 import { useToasts } from '@app/hooks/useToasts';
 import defineMessages from '@app/utils/defineMessages';
 import {
@@ -136,9 +137,11 @@ export const MusicPreviewProvider = ({
       setLoadingArtist(artistName);
 
       try {
+        // The API validator rejects reserved characters in query values,
+        // including the "+" axios uses for spaces and the ' ( ) ! * that
+        // encodeURIComponent leaves alone (Guns N' Roses, Panic! at the Disco).
         const response = await axios.get<MusicPreviewResponse>(
-          '/api/v1/music/preview',
-          { params: { artist: artistName } }
+          `/api/v1/music/preview?artist=${encodeURIExtraParams(artistName)}`
         );
 
         if (requestId !== requestRef.current) {

@@ -6,6 +6,7 @@ import ArtistCard from '@app/components/Music/ArtistCard';
 import MusicSlider from '@app/components/Music/MusicSlider';
 import { MusicPreviewProvider } from '@app/components/Music/PreviewPlayer';
 import useDebouncedState from '@app/hooks/useDebouncedState';
+import { encodeURIExtraParams } from '@app/hooks/useDiscover';
 import useSettings from '@app/hooks/useSettings';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
@@ -117,7 +118,7 @@ const Music = () => {
   const query = debouncedValue.trim();
   const { data, error, isLoading } = useSWR<MusicSearchResponse>(
     currentSettings.musicEnabled && query
-      ? `/api/v1/music/search?query=${encodeURIComponent(query)}`
+      ? `/api/v1/music/search?query=${encodeURIExtraParams(query)}`
       : null,
     { revalidateOnFocus: false }
   );

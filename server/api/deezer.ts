@@ -8,7 +8,15 @@ interface DeezerArtist {
   picture_big?: string;
 }
 
-interface DeezerSearchResponse {
+/**
+ * Deezer reports errors (quota exceeded, unknown ids) with a 200 status and
+ * an error object in place of the data.
+ */
+interface DeezerResponse {
+  error?: { type?: string; message?: string; code?: number };
+}
+
+interface DeezerSearchResponse extends DeezerResponse {
   data?: DeezerArtist[];
 }
 
@@ -22,7 +30,7 @@ interface DeezerTrack {
   album?: { title?: string; cover_medium?: string };
 }
 
-interface DeezerTrackList {
+interface DeezerTrackList extends DeezerResponse {
   data?: DeezerTrack[];
 }
 
@@ -33,6 +41,22 @@ export interface DeezerPreviewTrack {
   coverUrl?: string;
   previewUrl: string;
 }
+
+/**
+ * Throws on Deezer's error replies so they are not cached as empty results.
+ * Runs before the cache write in ExternalAPI.get.
+ */
+const rejectErrors = <T extends DeezerResponse>(data: T): T => {
+  if (data.error) {
+    throw new Error(
+      `Deezer error ${data.error.code ?? ''}: ${
+        data.error.message ?? data.error.type ?? 'unknown'
+      }`.trim()
+    );
+  }
+
+  return data;
+};
 
 const normalizeName = (name: string): string =>
   name.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
@@ -64,7 +88,8 @@ class DeezerAPI extends ExternalAPI {
       '/search/artist',
       { params: { q: name, limit: 10 } },
       // Artist search results rarely change; keep them for a week.
-      604800
+      604800,
+      { transform: rejectErrors }
     );
 
     const target = normalizeName(name);
@@ -108,7 +133,8 @@ class DeezerAPI extends ExternalAPI {
       { params: { limit } },
       // Preview links expire 15 minutes after they are issued; leave time
       // for a full queue of 30 second clips to play.
-      300
+      300,
+      { transform: rejectErrors }
     );
 
     return (response.data ?? [])
@@ -122,5 +148,17 @@ class DeezerAPI extends ExternalAPI {
       }));
   }
 }
+
+let sharedInstance: DeezerAPI | undefined;
+
+/**
+ * One client for the whole server, so every caller shares the rate limit.
+ * Separate clients each get their own limiter and together exceed Deezer's
+ * quota when the Music page loads many rows at once.
+ */
+export const getDeezer = (): DeezerAPI => {
+  sharedInstance ??= new DeezerAPI();
+  return sharedInstance;
+};
 
 export default DeezerAPI;
