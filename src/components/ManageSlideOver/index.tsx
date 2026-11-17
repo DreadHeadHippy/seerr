@@ -7,6 +7,7 @@ import Tooltip from '@app/components/Common/Tooltip';
 import DownloadBlock from '@app/components/DownloadBlock';
 import IssueBlock from '@app/components/IssueBlock';
 import RequestBlock from '@app/components/RequestBlock';
+import { useLiveDownloads } from '@app/hooks/useLiveTorrents';
 import useSettings from '@app/hooks/useSettings';
 import useToasts from '@app/hooks/useToasts';
 import { Permission, useUser } from '@app/hooks/useUser';
@@ -127,6 +128,9 @@ const ManageSlideOver = ({
   const { data: sonarrData } = useSWR<SonarrSettings[]>(
     hasPermission(Permission.ADMIN) ? '/api/v1/settings/sonarr' : null
   );
+  // qBittorrent's live numbers, same as the title cards' ring.
+  const liveDownloads = useLiveDownloads(data?.mediaInfo?.downloadStatus);
+  const liveDownloads4k = useLiveDownloads(data?.mediaInfo?.downloadStatus4k);
 
   const deleteMedia = async () => {
     if (data.mediaInfo) {
@@ -265,7 +269,7 @@ const ManageSlideOver = ({
             </h3>
             <div className="overflow-hidden rounded-md border border-gray-700 shadow">
               <ul>
-                {filterDuplicateDownloads(data.mediaInfo?.downloadStatus).map(
+                {filterDuplicateDownloads(liveDownloads).map(
                   (status, index) => (
                     <Tooltip
                       key={`dl-status-${status.externalId}-${index}`}
@@ -277,7 +281,7 @@ const ManageSlideOver = ({
                     </Tooltip>
                   )
                 )}
-                {filterDuplicateDownloads(data.mediaInfo?.downloadStatus4k).map(
+                {filterDuplicateDownloads(liveDownloads4k).map(
                   (status, index) => (
                     <Tooltip
                       key={`dl-status-4k-${status.externalId}-${index}`}

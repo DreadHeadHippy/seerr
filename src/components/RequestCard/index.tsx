@@ -7,6 +7,7 @@ import Tooltip from '@app/components/Common/Tooltip';
 import RequestModal from '@app/components/RequestModal';
 import StatusBadge from '@app/components/StatusBadge';
 import useDeepLinks from '@app/hooks/useDeepLinks';
+import { useLiveDownloads } from '@app/hooks/useLiveTorrents';
 import useToasts from '@app/hooks/useToasts';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
@@ -79,10 +80,14 @@ const RequestCardError = ({ requestData }: RequestCardErrorProps) => {
     iOSPlexUrl4k: requestData?.media?.iOSPlexUrl4k,
   });
 
-  const requestDownloadStatus = getRequestDownloadStatus(
+  // qBittorrent's live numbers, same as the title cards' ring.
+  const liveDownloads = useLiveDownloads(
     requestData?.media?.[
       requestData?.is4k ? 'downloadStatus4k' : 'downloadStatus'
-    ],
+    ]
+  );
+  const requestDownloadStatus = getRequestDownloadStatus(
+    liveDownloads,
     requestData?.type === 'tv'
       ? (requestData?.seasons ?? []).map((season) => season.seasonNumber)
       : []
@@ -305,6 +310,14 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
     }
   }, [title, onTitleData, request]);
 
+  // qBittorrent's live numbers, same as the title cards' ring. Before the
+  // early returns below, as hooks must be.
+  const liveDownloads = useLiveDownloads(
+    requestData?.media?.[
+      requestData?.is4k ? 'downloadStatus4k' : 'downloadStatus'
+    ]
+  );
+
   if (!title && !error) {
     return (
       <div ref={ref}>
@@ -322,7 +335,7 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
   }
 
   const requestDownloadStatus = getRequestDownloadStatus(
-    requestData.media[requestData.is4k ? 'downloadStatus4k' : 'downloadStatus'],
+    liveDownloads,
     requestData.type === 'tv'
       ? requestData.seasons.map((season) => season.seasonNumber)
       : []

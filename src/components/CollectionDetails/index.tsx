@@ -9,6 +9,7 @@ import RequestModal from '@app/components/RequestModal';
 import Slider from '@app/components/Slider';
 import StatusBadge from '@app/components/StatusBadge';
 import TitleCard from '@app/components/TitleCard';
+import { useLiveDownloads } from '@app/hooks/useLiveTorrents';
 import useSettings from '@app/hooks/useSettings';
 import useToasts from '@app/hooks/useToasts';
 import { Permission, useUser } from '@app/hooks/useUser';
@@ -145,6 +146,9 @@ const CollectionDetails = ({ collection }: CollectionDetailsProps) => {
     const downloadItems = returnCollectionDownloadItems(data);
     return [downloadItems.downloadStatus, downloadItems.downloadStatus4k];
   }, [data]);
+  // qBittorrent's live numbers, same as the title cards' ring.
+  const liveDownloadStatus = useLiveDownloads(downloadStatus);
+  const liveDownloadStatus4k = useLiveDownloads(downloadStatus4k);
 
   const [titles, titles4k] = useMemo(() => {
     return [
@@ -344,7 +348,7 @@ const CollectionDetails = ({ collection }: CollectionDetailsProps) => {
           <div className="media-status">
             <StatusBadge
               status={collectionStatus}
-              downloadItem={downloadStatus}
+              downloadItem={liveDownloadStatus}
               title={titles}
               statusLabelOverride={
                 isCollectionPartiallyBlocklisted
@@ -364,7 +368,7 @@ const CollectionDetails = ({ collection }: CollectionDetailsProps) => {
               ) && (
                 <StatusBadge
                   status={collectionStatus4k}
-                  downloadItem={downloadStatus4k}
+                  downloadItem={liveDownloadStatus4k}
                   title={titles4k}
                   is4k
                   inProgress={data.parts.some(

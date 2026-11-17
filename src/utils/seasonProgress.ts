@@ -1,13 +1,19 @@
 import { MediaRequestStatus, MediaStatus } from '@server/constants/media';
-import type {
-  DownloadingItem,
-  LiveSnapshot,
-} from '@server/lib/downloadtracker';
+import type { LiveSnapshot } from '@server/lib/downloadtracker';
 
-export type ProgressDownload = Pick<
-  DownloadingItem,
-  'size' | 'sizeLeft' | 'status' | 'estimatedCompletionTime'
-> & { downloadId?: string; episode?: { seasonNumber: number } };
+/**
+ * A download's numbers: a queue item (DownloadingItem), a music torrent, or
+ * either with qBittorrent's live numbers merged in. Times arrive as JSON
+ * strings whatever the type says.
+ */
+export interface ProgressDownload {
+  size: number;
+  sizeLeft: number;
+  status: string;
+  estimatedCompletionTime?: Date | string | null;
+  downloadId?: string;
+  episode?: { seasonNumber: number };
+}
 
 /**
  * - available: in the library
@@ -42,9 +48,8 @@ export const withLiveTorrents = <T extends ProgressDownload>(
           size: torrent.size,
           sizeLeft: torrent.sizeLeft,
           status: torrent.status,
-          estimatedCompletionTime: torrent.estimatedCompletionTime as
-            | Date
-            | undefined,
+          estimatedCompletionTime:
+            torrent.estimatedCompletionTime as T['estimatedCompletionTime'],
         }
       : download;
   });
