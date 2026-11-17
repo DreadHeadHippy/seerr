@@ -5,6 +5,7 @@ import type { RequestOverrides } from '@app/components/RequestModal/AdvancedRequ
 import AdvancedRequester from '@app/components/RequestModal/AdvancedRequester';
 import QuotaDisplay from '@app/components/RequestModal/QuotaDisplay';
 import SearchByNameModal from '@app/components/RequestModal/SearchByNameModal';
+import StorageNotice from '@app/components/RequestModal/StorageNotice';
 import useSettings from '@app/hooks/useSettings';
 import useToasts from '@app/hooks/useToasts';
 import { useUser } from '@app/hooks/useUser';
@@ -519,6 +520,11 @@ const TvRequestModal = ({
             />
           </div>
         )}
+      <StorageNotice
+        forSomeoneElse={
+          !!requestOverrides?.user && requestOverrides.user.id !== user?.id
+        }
+      />
       {(quota?.tv.limit ?? 0) > 0 && (
         <QuotaDisplay
           mediaType="tv"

@@ -1,4 +1,5 @@
 import Badge from '@app/components/Common/Badge';
+import StorageMeter from '@app/components/Common/StorageMeter';
 import { menuMessages } from '@app/components/Layout/Sidebar';
 import useClickOutside from '@app/hooks/useClickOutside';
 import type { BrowseSection } from '@app/hooks/useMediaAccess';
@@ -14,6 +15,7 @@ import {
   EyeSlashIcon,
   FilmIcon,
   MusicalNoteIcon,
+  RectangleStackIcon,
   SparklesIcon,
   TvIcon,
   UsersIcon,
@@ -26,6 +28,7 @@ import {
   EyeSlashIcon as FilledEyeSlashIcon,
   FilmIcon as FilledFilmIcon,
   MusicalNoteIcon as FilledMusicalNoteIcon,
+  RectangleStackIcon as FilledRectangleStackIcon,
   SparklesIcon as FilledSparklesIcon,
   TvIcon as FilledTvIcon,
   UsersIcon as FilledUsersIcon,
@@ -126,6 +129,13 @@ const MobileMenu = ({
       activeRegExp: /^\/in-progress/,
     },
     {
+      href: '/my-media',
+      content: intl.formatMessage(menuMessages.mymedia),
+      svgIcon: <RectangleStackIcon className="h-6 w-6" />,
+      svgIconSelected: <FilledRectangleStackIcon className="h-6 w-6" />,
+      activeRegExp: /^\/my-media/,
+    },
+    {
       href: '/blocklist',
       content: intl.formatMessage(menuMessages.blocklist),
       svgIcon: <EyeSlashIcon className="h-6 w-6" />,
@@ -208,6 +218,7 @@ const MobileMenu = ({
         leaveTo="opacity-0 translate-y-0"
         className="absolute left-0 right-0 top-0 flex w-full -translate-y-full flex-col space-y-6 border-t border-gray-600 bg-gray-900/90 px-6 py-6 font-semibold text-gray-100 backdrop-blur"
       >
+        <StorageMeter onClick={() => setIsOpen(false)} />
         {filteredLinks.map((link) => {
           const isActive = router.pathname.match(link.activeRegExp);
           return (
@@ -252,6 +263,7 @@ const MobileMenu = ({
           );
         })}
       </Transition>
+      {!isOpen && <StorageMeter variant="strip" />}
       <div className="padding-bottom-safe border-t border-gray-600 bg-gray-800/90 backdrop-blur">
         <div className="flex h-full items-center justify-between px-6 py-4 text-gray-100">
           {filteredLinks

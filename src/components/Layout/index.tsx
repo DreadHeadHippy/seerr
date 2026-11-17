@@ -87,7 +87,8 @@ const Layout = ({ children }: LayoutProps) => {
         />
       </div>
 
-      <div className="relative mb-16 flex w-0 min-w-0 flex-1 flex-col lg:ml-64">
+      {/* Phones: room for the bottom menu and its storage strip. */}
+      <div className="relative mb-24 flex w-0 min-w-0 flex-1 flex-col lg:mb-16 lg:ml-64">
         <PullToRefresh />
         <div
           className={`searchbar fixed left-0 right-0 top-0 z-10 flex flex-shrink-0 transition duration-300 ${

@@ -1,5 +1,6 @@
 import CachedImage from '@app/components/Common/CachedImage';
 import defineMessages from '@app/utils/defineMessages';
+import { formatSize } from '@app/utils/formatSize';
 import type { StorageItem, StorageUsage } from '@server/lib/storage';
 import type { MovieDetails } from '@server/models/Movie';
 import type { TvDetails } from '@server/models/Tv';
@@ -17,15 +18,6 @@ const messages = defineMessages('components.UserProfile.StorageUsage', {
   nothing: 'Nothing you requested is taking up space yet.',
   howToDelete: 'Open a title to delete it or ask for it to be deleted.',
 });
-
-const GB = 1024 ** 3;
-
-const formatSize = (bytes: number): string =>
-  bytes >= 100 * GB
-    ? `${Math.round(bytes / GB)} GB`
-    : bytes >= GB
-      ? `${(bytes / GB).toFixed(1)} GB`
-      : `${Math.max(1, Math.round(bytes / 1024 ** 2))} MB`;
 
 const StorageRow = ({ item }: { item: StorageItem }) => {
   const intl = useIntl();

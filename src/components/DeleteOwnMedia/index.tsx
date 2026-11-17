@@ -1,6 +1,5 @@
 import Button from '@app/components/Common/Button';
 import Modal from '@app/components/Common/Modal';
-import Tooltip from '@app/components/Common/Tooltip';
 import useToasts from '@app/hooks/useToasts';
 import defineMessages from '@app/utils/defineMessages';
 import { Transition } from '@headlessui/react';
@@ -14,10 +13,10 @@ import useSWR from 'swr';
 
 const messages = defineMessages('components.DeleteOwnMedia', {
   delete: 'Delete',
-  requestDeletion: 'Request Deletion',
+  requestDeletion: 'Ask to Delete',
   deletionRequested: 'Deletion Requested',
   deleteTitle: 'Delete {title}',
-  requestTitle: 'Request Deletion of {title}',
+  requestTitle: 'Ask to Delete {title}',
   pendingTitle: 'Deletion Requested',
   movieDelete:
     'This removes the movie and its files from the server for everyone. It frees up your storage.',
@@ -45,6 +44,8 @@ interface DeleteOwnMediaProps {
   backdropPath?: string;
   /** Called after a deletion, to refresh the page. */
   onDeleted?: () => void;
+  /** Fill the width, e.g. under a poster. */
+  block?: boolean;
 }
 
 /**
@@ -57,6 +58,7 @@ const DeleteOwnMedia = ({
   title,
   backdropPath,
   onDeleted,
+  block = false,
 }: DeleteOwnMediaProps) => {
   const intl = useIntl();
   const { addToast } = useToasts();
@@ -158,16 +160,14 @@ const DeleteOwnMedia = ({
 
   return (
     <>
-      <Tooltip content={label}>
-        <Button
-          buttonType={pending ? 'default' : 'danger'}
-          className="ml-2 first:ml-0"
-          onClick={() => setShow(true)}
-          aria-label={label}
-        >
-          <TrashIcon />
-        </Button>
-      </Tooltip>
+      <Button
+        buttonType={pending ? 'default' : 'danger'}
+        className={block ? 'w-full justify-center' : 'ml-2 first:ml-0'}
+        onClick={() => setShow(true)}
+      >
+        <TrashIcon />
+        <span>{label}</span>
+      </Button>
       <Transition
         as="div"
         enter="transition-opacity duration-300"

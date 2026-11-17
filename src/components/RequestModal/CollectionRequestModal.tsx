@@ -5,6 +5,7 @@ import Modal from '@app/components/Common/Modal';
 import type { RequestOverrides } from '@app/components/RequestModal/AdvancedRequester';
 import AdvancedRequester from '@app/components/RequestModal/AdvancedRequester';
 import QuotaDisplay from '@app/components/RequestModal/QuotaDisplay';
+import StorageNotice from '@app/components/RequestModal/StorageNotice';
 import useToasts from '@app/hooks/useToasts';
 import { useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
@@ -298,6 +299,11 @@ const CollectionRequestModal = ({
           />
         </div>
       )}
+      <StorageNotice
+        forSomeoneElse={
+          !!requestOverrides?.user && requestOverrides.user.id !== user?.id
+        }
+      />
       {(quota?.movie.limit ?? 0) > 0 && (
         <QuotaDisplay
           mediaType="movie"

@@ -1,4 +1,5 @@
 import Badge from '@app/components/Common/Badge';
+import StorageMeter from '@app/components/Common/StorageMeter';
 import { useInProgress } from '@app/components/InProgress';
 import VersionStatus from '@app/components/Layout/VersionStatus';
 import { useDeletionRequests } from '@app/components/RequestList/DeletionRequests';
@@ -16,6 +17,7 @@ import {
   EyeSlashIcon,
   FilmIcon,
   MusicalNoteIcon,
+  RectangleStackIcon,
   SparklesIcon,
   TvIcon,
   UsersIcon,
@@ -34,6 +36,7 @@ export const menuMessages = defineMessages('components.Layout.Sidebar', {
   browsemusic: 'Music',
   requests: 'Requests',
   inprogress: 'In Progress',
+  mymedia: 'My Media',
   blocklist: 'Blocklist',
   issues: 'Issues',
   users: 'Users',
@@ -101,6 +104,12 @@ const SidebarLinks: SidebarLinkProps[] = [
     messagesKey: 'inprogress',
     svgIcon: <ArrowDownTrayIcon className="mr-3 h-6 w-6" />,
     activeRegExp: /^\/in-progress/,
+  },
+  {
+    href: '/my-media',
+    messagesKey: 'mymedia',
+    svgIcon: <RectangleStackIcon className="mr-3 h-6 w-6" />,
+    activeRegExp: /^\/my-media/,
   },
   {
     href: '/blocklist',
@@ -272,6 +281,9 @@ const Sidebar = ({
                         );
                       })}
                     </nav>
+                    <div className="mt-4 px-2">
+                      <StorageMeter onClick={() => setClosed()} />
+                    </div>
                     {hasPermission(Permission.ADMIN) && (
                       <div className="px-2">
                         <VersionStatus onClick={() => setClosed()} />
@@ -370,6 +382,9 @@ const Sidebar = ({
                   );
                 })}
               </nav>
+              <div className="mt-4 px-4">
+                <StorageMeter />
+              </div>
               {hasPermission(Permission.ADMIN) && (
                 <div className="px-2">
                   <VersionStatus />

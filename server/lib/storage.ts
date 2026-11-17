@@ -1,6 +1,10 @@
 import RadarrAPI from '@server/api/servarr/radarr';
 import SonarrAPI from '@server/api/servarr/sonarr';
-import { MediaRequestStatus, MediaType } from '@server/constants/media';
+import {
+  MediaRequestStatus,
+  MediaStatus,
+  MediaType,
+} from '@server/constants/media';
 import { getRepository } from '@server/datasource';
 import { MediaRequest } from '@server/entity/MediaRequest';
 import type { User } from '@server/entity/User';
@@ -17,6 +21,8 @@ export interface StorageItem {
   mediaId: number;
   tmdbId: number;
   mediaType: 'movie' | 'tv';
+  /** Seerr's status, e.g. available or still processing. */
+  status: MediaStatus;
   /** Their share: on disk plus downloading, split between requesters. */
   bytes: number;
   /** Series: the seasons they requested. */
@@ -339,23 +345,44 @@ export const getStorageUsage = async (user: User): Promise<StorageUsage> => {
     (mediaId, is4k) => sizes.get(`${mediaId}:${is4k}`)
   );
 
-  const items: StorageItem[] = shares
-    .filter((share) => share.bytes > 0)
-    .map((share) => {
-      const m = media.get(share.mediaId);
+  // One entry per title (a 4K copy adds to it), keeping titles that take
+  // no space yet but are in the library or on their way, so users see
+  // everything they asked for.
+  const byMedia = new Map<number, StorageItem>();
 
-      return {
-        mediaId: share.mediaId,
-        tmdbId: m?.tmdbId ?? 0,
-        mediaType: (m?.mediaType === MediaType.TV
-          ? 'tv'
-          : 'movie') as StorageItem['mediaType'],
-        bytes: Math.round(share.bytes),
-        seasons: share.seasons.length ? share.seasons : undefined,
-        shared: share.shared,
-      };
-    })
-    .sort((a, b) => b.bytes - a.bytes);
+  for (const share of shares) {
+    const m = media.get(share.mediaId);
+    const existing = byMedia.get(share.mediaId);
+
+    if (existing) {
+      existing.bytes += Math.round(share.bytes);
+      existing.shared ||= share.shared;
+      continue;
+    }
+
+    const status = m?.status ?? MediaStatus.UNKNOWN;
+    const listed =
+      share.bytes > 0 ||
+      status === MediaStatus.AVAILABLE ||
+      status === MediaStatus.PARTIALLY_AVAILABLE ||
+      status === MediaStatus.PROCESSING;
+
+    if (!listed) {
+      continue;
+    }
+
+    byMedia.set(share.mediaId, {
+      mediaId: share.mediaId,
+      tmdbId: m?.tmdbId ?? 0,
+      mediaType: m?.mediaType === MediaType.TV ? 'tv' : 'movie',
+      status,
+      bytes: Math.round(share.bytes),
+      seasons: share.seasons.length ? share.seasons : undefined,
+      shared: share.shared,
+    });
+  }
+
+  const items = [...byMedia.values()].sort((a, b) => b.bytes - a.bytes);
   const usedBytes = items.reduce((sum, item) => sum + item.bytes, 0);
 
   return {
