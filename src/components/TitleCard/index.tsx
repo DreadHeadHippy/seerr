@@ -9,6 +9,7 @@ import RequestModal from '@app/components/RequestModal';
 import ErrorCard from '@app/components/TitleCard/ErrorCard';
 import Placeholder from '@app/components/TitleCard/Placeholder';
 import { useIsTouch } from '@app/hooks/useIsTouch';
+import useLiveDownload from '@app/hooks/useLiveDownload';
 import useToasts from '@app/hooks/useToasts';
 import { Permission, UserType, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
@@ -62,6 +63,10 @@ const messages = defineMessages('components.TitleCard', {
     '<strong>{title}</strong> Removed from watchlist  successfully!',
   watchlistCancel: 'watchlist for <strong>{title}</strong> canceled.',
   watchlistError: 'Something went wrong. Please try again.',
+  etaSoon: 'ETA <1 min',
+  etaMinutes: 'ETA {minutes} min',
+  etaHours: 'ETA {hours}h {minutes}m',
+  importing: 'Importing',
 });
 
 const TitleCard = ({
@@ -146,6 +151,33 @@ const TitleCard = ({
   const showRing =
     (activeDownloads.length > 0 && currentStatus !== MediaStatus.AVAILABLE) ||
     importing;
+  const live = useLiveDownload(showRing ? activeDownloads : []);
+  const etaLabel = (() => {
+    if (!showRing) {
+      return undefined;
+    }
+
+    if (importing || live.done) {
+      return intl.formatMessage(messages.importing);
+    }
+
+    if (live.etaMs === undefined) {
+      return undefined;
+    }
+
+    const minutes = Math.ceil(live.etaMs / 60000);
+
+    if (live.etaMs < 60000) {
+      return intl.formatMessage(messages.etaSoon);
+    }
+
+    return minutes < 60
+      ? intl.formatMessage(messages.etaMinutes, { minutes })
+      : intl.formatMessage(messages.etaHours, {
+          hours: Math.floor(minutes / 60),
+          minutes: minutes % 60,
+        });
+  })();
   /** Just became available while on screen: a big check, briefly. */
   const [justAvailable, setJustAvailable] = useState(false);
 
@@ -477,20 +509,29 @@ const TitleCard = ({
             fill
           />
           <div className="absolute left-0 right-0 flex items-center justify-between p-2">
-            <div
-              className={`pointer-events-none z-40 self-start rounded-full border shadow-md ${
-                mediaType === 'movie' || mediaType === 'collection'
-                  ? 'border-blue-500 bg-blue-600/80'
-                  : 'border-purple-600 bg-purple-600/80'
-              }`}
-            >
-              <div className="flex h-4 items-center px-2 py-2 text-center text-xs font-medium uppercase tracking-wider text-white sm:h-5">
-                {mediaType === 'movie'
-                  ? intl.formatMessage(globalMessages.movie)
-                  : mediaType === 'collection'
-                    ? intl.formatMessage(globalMessages.collection)
-                    : intl.formatMessage(globalMessages.tvshow)}
+            <div className="pointer-events-none z-40 flex flex-wrap items-center gap-1 self-start">
+              <div
+                className={`rounded-full border shadow-md ${
+                  mediaType === 'movie' || mediaType === 'collection'
+                    ? 'border-blue-500 bg-blue-600/80'
+                    : 'border-purple-600 bg-purple-600/80'
+                }`}
+              >
+                <div className="flex h-4 items-center px-2 py-2 text-center text-xs font-medium uppercase tracking-wider text-white sm:h-5">
+                  {mediaType === 'movie'
+                    ? intl.formatMessage(globalMessages.movie)
+                    : mediaType === 'collection'
+                      ? intl.formatMessage(globalMessages.collection)
+                      : intl.formatMessage(globalMessages.tvshow)}
+                </div>
               </div>
+              {etaLabel && (
+                <div className="rounded-full border border-indigo-500 bg-indigo-600/80 shadow-md">
+                  <div className="flex h-4 items-center whitespace-nowrap px-2 py-2 text-xs font-medium text-white sm:h-5">
+                    {etaLabel}
+                  </div>
+                </div>
+              )}
             </div>
             {showDetail && currentStatus !== MediaStatus.BLOCKLISTED && (
               <div className="flex flex-col gap-1">
@@ -576,8 +617,8 @@ const TitleCard = ({
             <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center">
               {showRing ? (
                 <DownloadRing
-                  downloads={activeDownloads}
-                  complete={importing}
+                  progress={live.progress}
+                  importing={importing || live.done}
                 />
               ) : (
                 <Transition
