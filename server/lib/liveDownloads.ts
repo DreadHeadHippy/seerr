@@ -132,6 +132,27 @@ export const fetchLiveProgress = async (
 const WARN_EVERY_MS = 5 * 60 * 1000;
 let lastWarning = 0;
 
+/**
+ * The last reading qBittorrent gave for each torrent. A failed read shows
+ * these rather than falling back to the *arr queues, which lag well behind.
+ */
+const lastGood = new Map<string, LiveProgress>();
+
+/** Readings for torrents nobody asks about any more are dropped past this. */
+const LAST_GOOD_LIMIT = 200;
+
+/** The last good readings for these hashes. */
+export const lastGoodReadings = (
+  wanted: string[],
+  readings: Map<string, LiveProgress> = lastGood
+): Map<string, LiveProgress> =>
+  new Map(
+    wanted.flatMap((hash) => {
+      const reading = readings.get(hash);
+      return reading ? [[hash, reading] as const] : [];
+    })
+  );
+
 const readTorrents = async (
   api: QbittorrentAPI,
   wanted: string[]
@@ -147,6 +168,25 @@ const readTorrents = async (
     );
     const missing = wanted.filter((hash) => !live.has(hash));
 
+    // Kept per hash, so readings for other callers' torrents survive too.
+    // A torrent qBittorrent no longer has is gone for real; forget it.
+    for (const hash of wanted) {
+      const reading = live.get(hash);
+
+      if (reading) {
+        lastGood.set(hash, reading);
+      } else {
+        lastGood.delete(hash);
+      }
+    }
+
+    if (lastGood.size > LAST_GOOD_LIMIT) {
+      const keep = new Set(wanted);
+      [...lastGood.keys()]
+        .filter((hash) => !keep.has(hash))
+        .forEach((hash) => lastGood.delete(hash));
+    }
+
     if (missing.length > 0) {
       // Usually a torrent the *arr hasn't sent yet, or one already removed.
       logger.debug(
@@ -160,11 +200,11 @@ const readTorrents = async (
     if (Date.now() - lastWarning > WARN_EVERY_MS) {
       lastWarning = Date.now();
       logger.warn(
-        'Unable to read live progress from qBittorrent; showing the *arr queue numbers instead',
+        'Unable to read live progress from qBittorrent; showing its last readings until it answers again',
         { label: 'Download Tracker', errorMessage: e.message }
       );
     }
 
-    return new Map();
+    return lastGoodReadings(wanted);
   }
 };

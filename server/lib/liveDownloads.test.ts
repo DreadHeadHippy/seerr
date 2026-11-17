@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { QBIT_NO_ETA, type QbitTorrent } from '@server/api/qbittorrent';
-import { toLiveProgress } from '@server/lib/liveDownloads';
+import { lastGoodReadings, toLiveProgress } from '@server/lib/liveDownloads';
 
 const torrent = (fields: Partial<QbitTorrent>): QbitTorrent => ({
   hash: 'abc',
@@ -63,5 +63,21 @@ describe('toLiveProgress', () => {
       'paused'
     );
     assert.equal(toLiveProgress(torrent({ state: 'error' })).status, 'warning');
+  });
+});
+
+describe('lastGoodReadings', () => {
+  it('returns the kept readings for the wanted hashes only', () => {
+    const reading = toLiveProgress(torrent({}), NOW);
+    const kept = lastGoodReadings(
+      ['abc', 'missing'],
+      new Map([
+        ['abc', reading],
+        ['other', reading],
+      ])
+    );
+
+    assert.deepEqual([...kept.keys()], ['abc']);
+    assert.equal(kept.get('abc'), reading);
   });
 });
