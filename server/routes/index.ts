@@ -32,6 +32,7 @@ import arrWebhookRoutes from './arrWebhook';
 import authRoutes from './auth';
 import blocklistRoutes from './blocklist';
 import collectionRoutes from './collection';
+import deletionRoutes from './deletion';
 import discoverRoutes, { createTmdbWithRegionLanguage } from './discover';
 import downloadRoutes from './downloads';
 import issueRoutes from './issue';
@@ -116,6 +117,7 @@ router.use('/user', isAuthenticated(), user);
 // Authenticated by the API key in the URL; see the route.
 router.use('/arr-webhook', arrWebhookRoutes);
 router.use('/downloads', isAuthenticated(), downloadRoutes);
+router.use('/deletion', isAuthenticated(), deletionRoutes);
 router.get('/settings/public', async (req, res) => {
   const settings = getSettings();
 

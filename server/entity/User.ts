@@ -1,3 +1,4 @@
+import type { DeletionMode } from '@server/constants/deletion';
 import { MediaRequestStatus, MediaType } from '@server/constants/media';
 import { UserType } from '@server/constants/user';
 import { getRepository } from '@server/datasource';
@@ -135,6 +136,14 @@ export class User {
 
   @Column({ nullable: true })
   public tvQuotaDays?: number;
+
+  /** GB their requests may take up on disk; null means the default. */
+  @Column({ type: 'integer', nullable: true })
+  public storageLimitGb?: number | null;
+
+  /** What they may do with media they requested; null means the default. */
+  @Column({ type: 'varchar', nullable: true })
+  public deletionMode?: DeletionMode | null;
 
   @OneToOne(() => UserSettings, (settings) => settings.user, {
     cascade: true,

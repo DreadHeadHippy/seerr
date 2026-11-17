@@ -862,6 +862,39 @@ router.get<{ id: string }, QuotaResponse>(
   }
 );
 
+/** What the user's requests take up on disk, against their storage limit. */
+router.get<{ id: string }>('/:id/storage', async (req, res, next) => {
+  if (
+    Number(req.params.id) !== req.user?.id &&
+    !req.user?.hasPermission(Permission.MANAGE_USERS)
+  ) {
+    return next({
+      status: 403,
+      message: "You do not have permission to view this user's storage.",
+    });
+  }
+
+  try {
+    const user = await getRepository(User).findOneOrFail({
+      where: { id: Number(req.params.id) },
+    });
+    const { getStorageUsage } = await import('@server/lib/storage');
+    const { deletionModeFor } = await import('@server/lib/deletion');
+
+    return res.status(200).json({
+      ...(await getStorageUsage(user)),
+      deletionMode: deletionModeFor(user),
+    });
+  } catch (e) {
+    logger.error('Unable to read storage usage', {
+      label: 'API',
+      userId: req.params.id,
+      errorMessage: e.message,
+    });
+    return next({ status: 500, message: 'Unable to read storage usage.' });
+  }
+});
+
 router.get<{ id: string }, UserWatchDataResponse>(
   '/:id/watch_data',
   isOwnProfileOrAdmin(),

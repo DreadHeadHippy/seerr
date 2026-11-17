@@ -164,6 +164,25 @@ export class MediaRequest {
       ) {
         throw new QuotaRestrictedError('Series Quota exceeded.');
       }
+
+      // Storage budget: what their requests take up on disk. If the sizes
+      // can't be read, don't hold the request up over it.
+      const storage = await import('@server/lib/storage')
+        .then(({ getStorageUsage }) => getStorageUsage(requestUser))
+        .catch((e) => {
+          logger.warn('Unable to check storage usage for a request', {
+            label: 'Media Request',
+            userId: requestUser.id,
+            errorMessage: e.message,
+          });
+          return undefined;
+        });
+
+      if (storage?.restricted) {
+        throw new QuotaRestrictedError(
+          'Storage limit reached. Delete something you requested to make room.'
+        );
+      }
     }
 
     const tmdbMedia =

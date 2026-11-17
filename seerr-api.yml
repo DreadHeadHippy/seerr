@@ -3036,6 +3036,137 @@ paths:
             text/event-stream:
               schema:
                 type: string
+  /deletion/media/{mediaId}:
+    get:
+      summary: What the current user can do about deleting a title
+      description: Their deletion mode, which of the title they requested (seasons for a series, each marked shared when others requested it too), and any pending deletion request of theirs.
+      tags:
+        - media
+      parameters:
+        - in: path
+          name: mediaId
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: Deletion options
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+    post:
+      summary: Delete, or ask to delete, media the user requested
+      description: Deletes right away in direct mode when nothing chosen is shared with another requester; otherwise creates a deletion request for an admin. Series take the seasons to delete.
+      tags:
+        - media
+      parameters:
+        - in: path
+          name: mediaId
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                seasons:
+                  type: array
+                  items:
+                    type: number
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Deleted
+        '201':
+          description: Deletion requested
+  /deletion/requests:
+    get:
+      summary: Deletion requests
+      description: Pending deletion requests (or all with status=all), for admins.
+      tags:
+        - media
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, all]
+      responses:
+        '200':
+          description: Deletion requests
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /deletion/requests/{id}:
+    delete:
+      summary: Withdraw a deletion request
+      tags:
+        - media
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      responses:
+        '204':
+          description: Withdrawn
+  /deletion/requests/{id}/approve:
+    post:
+      summary: Approve a deletion request and delete the media
+      tags:
+        - media
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: Approved and deleted
+  /deletion/requests/{id}/decline:
+    post:
+      summary: Decline a deletion request
+      tags:
+        - media
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: Declined
+  /user/{userId}/storage:
+    get:
+      summary: Storage used by a user's requests
+      description: What the user's requested media takes up on disk (split between requesters), against their storage limit, plus their deletion mode.
+      tags:
+        - users
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: Storage usage
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
   /settings/qbittorrent:
     get:
       summary: Get qBittorrent settings

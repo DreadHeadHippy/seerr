@@ -458,6 +458,44 @@ class SonarrAPI extends ServarrBase<{
     }
   };
 
+  /**
+   * Deletes some seasons' episode files and stops monitoring those seasons,
+   * so Sonarr doesn't grab them again. The rest of the series is untouched.
+   */
+  public removeSeasons = async (
+    seriesId: number,
+    seasonNumbers: number[]
+  ): Promise<void> => {
+    const files = await this.axios.get<{ id: number; seasonNumber: number }[]>(
+      '/episodefile',
+      { params: { seriesId } }
+    );
+    const ids = files.data
+      .filter((file) => seasonNumbers.includes(file.seasonNumber))
+      .map((file) => file.id);
+
+    if (ids.length > 0) {
+      await this.axios.delete('/episodefile/bulk', {
+        data: { episodeFileIds: ids },
+      });
+    }
+
+    const series = await this.getSeriesById(seriesId);
+    await this.axios.put(`/series/${seriesId}`, {
+      ...series,
+      seasons: series.seasons.map((season) =>
+        seasonNumbers.includes(season.seasonNumber)
+          ? { ...season, monitored: false }
+          : season
+      ),
+    });
+
+    logger.info(`[Sonarr] Removed seasons from ${series.title}`, {
+      seasons: seasonNumbers,
+      files: ids.length,
+    });
+  };
+
   public clearCache = ({
     tvdbId,
     externalId,

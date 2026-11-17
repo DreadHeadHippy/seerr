@@ -1,3 +1,4 @@
+import { DeletionMode } from '@server/constants/deletion';
 import { MediaServerType } from '@server/constants/server';
 import { Permission } from '@server/lib/permissions';
 import { runMigrations } from '@server/lib/settings/migrator';
@@ -155,6 +156,10 @@ export interface MainSettings {
     movie: Quota;
     tv: Quota;
   };
+  /** GB a user's requests may take up on disk; 0 or unset is unlimited. */
+  defaultStorageLimitGb?: number;
+  /** What users may do with media they requested, unless set per user. */
+  defaultDeletionMode?: DeletionMode;
   hideAvailable: boolean;
   hideBlocklisted: boolean;
   hideRequested: boolean;
@@ -440,6 +445,8 @@ class Settings {
           movie: {},
           tv: {},
         },
+        defaultStorageLimitGb: 0,
+        defaultDeletionMode: DeletionMode.NONE,
         hideAvailable: false,
         hideBlocklisted: false,
         hideRequested: false,
