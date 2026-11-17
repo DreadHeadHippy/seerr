@@ -9,8 +9,8 @@ import {
   type LiveProgress,
 } from '@server/lib/liveDownloads';
 import {
-  IMPORTED_SCAN_DELAY_MS,
   anyDownloadLeft,
+  scanAfterImport,
   scanMediaServerSoon,
 } from '@server/lib/scanSoon';
 import { getSettings } from '@server/lib/settings';
@@ -193,7 +193,7 @@ class DownloadTracker {
 
     // Seerr doesn't track music availability; Lidarr tells Plex itself.
     if (service !== 'lidarr') {
-      scanMediaServerSoon(IMPORTED_SCAN_DELAY_MS);
+      scanAfterImport();
     }
   }
 

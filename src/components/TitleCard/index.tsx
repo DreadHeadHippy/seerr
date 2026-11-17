@@ -142,12 +142,14 @@ const TitleCard = ({
           requestedHere || sawDownload
         ),
       revalidateOnFocus: false,
+      // Scrolling away nulls the key; keep showing what we had meanwhile.
+      keepPreviousData: true,
     }
   );
   const latestStatus = latest?.mediaInfo?.status;
-  const activeDownloads = latest
-    ? (latest.mediaInfo?.downloadStatus ?? [])
-    : (downloads ?? []);
+  // Only the card's own fetch counts. The list's `downloads` can be a cached
+  // page from long ago (0%, an ETA of hours) and only says to start following.
+  const activeDownloads = latest?.mediaInfo?.downloadStatus ?? [];
   const importing =
     sawDownload &&
     activeDownloads.length === 0 &&
@@ -672,7 +674,7 @@ const TitleCard = ({
                 <div className="flex">
                   <StatusBadgeMini
                     status={currentStatus}
-                    inProgress={inProgress && !latest && !downloads}
+                    inProgress={inProgress && !latest}
                     shrink
                   />
                 </div>
