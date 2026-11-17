@@ -12,6 +12,7 @@ import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import PageTitle from '@app/components/Common/PageTitle';
 import type { PlayButtonLink } from '@app/components/Common/PlayButton';
 import PlayButton from '@app/components/Common/PlayButton';
+import ReadyEta from '@app/components/Common/ReadyEta';
 import Tag from '@app/components/Common/Tag';
 import Tooltip from '@app/components/Common/Tooltip';
 import ExternalLinkBlock from '@app/components/ExternalLinkBlock';
@@ -529,6 +530,10 @@ const MovieDetails = ({ movie }: MovieDetailsProps) => {
               plexUrl={plexUrl}
               serviceUrl={data.mediaInfo?.serviceUrl}
             />
+            <ReadyEta
+              downloads={data.mediaInfo?.downloadStatus}
+              className="self-center"
+            />
             {settings.currentSettings.movie4kEnabled &&
               hasPermission(
                 [
@@ -540,19 +545,25 @@ const MovieDetails = ({ movie }: MovieDetailsProps) => {
                   type: 'or',
                 }
               ) && (
-                <StatusBadge
-                  status={data.mediaInfo?.status4k}
-                  downloadItem={data.mediaInfo?.downloadStatus4k}
-                  title={data.title}
-                  is4k
-                  inProgress={
-                    (data.mediaInfo?.downloadStatus4k ?? []).length > 0
-                  }
-                  tmdbId={data.mediaInfo?.tmdbId}
-                  mediaType="movie"
-                  plexUrl={plexUrl4k}
-                  serviceUrl={data.mediaInfo?.serviceUrl4k}
-                />
+                <>
+                  <StatusBadge
+                    status={data.mediaInfo?.status4k}
+                    downloadItem={data.mediaInfo?.downloadStatus4k}
+                    title={data.title}
+                    is4k
+                    inProgress={
+                      (data.mediaInfo?.downloadStatus4k ?? []).length > 0
+                    }
+                    tmdbId={data.mediaInfo?.tmdbId}
+                    mediaType="movie"
+                    plexUrl={plexUrl4k}
+                    serviceUrl={data.mediaInfo?.serviceUrl4k}
+                  />
+                  <ReadyEta
+                    downloads={data.mediaInfo?.downloadStatus4k}
+                    className="self-center"
+                  />
+                </>
               )}
           </div>
           <h1 data-testid="media-title">

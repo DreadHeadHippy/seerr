@@ -3,6 +3,7 @@ import Badge from '@app/components/Common/Badge';
 import Button from '@app/components/Common/Button';
 import CachedImage from '@app/components/Common/CachedImage';
 import ConfirmButton from '@app/components/Common/ConfirmButton';
+import ReadyEta from '@app/components/Common/ReadyEta';
 import RequestModal from '@app/components/RequestModal';
 import StatusBadge from '@app/components/StatusBadge';
 import useDeepLinks from '@app/hooks/useDeepLinks';
@@ -543,23 +544,31 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                   {intl.formatMessage(globalMessages.pending)}
                 </Badge>
               ) : (
-                <StatusBadge
-                  status={
-                    requestData.media[requestData.is4k ? 'status4k' : 'status']
-                  }
-                  downloadItem={requestDownloadStatus}
-                  title={isMovie(title) ? title.title : title.name}
-                  inProgress={requestDownloadStatus.length > 0}
-                  is4k={requestData.is4k}
-                  tmdbId={requestData.media.tmdbId}
-                  mediaType={requestData.type}
-                  plexUrl={requestData.is4k ? plexUrl4k : plexUrl}
-                  serviceUrl={
-                    requestData.is4k
-                      ? requestData.media.serviceUrl4k
-                      : requestData.media.serviceUrl
-                  }
-                />
+                <>
+                  <StatusBadge
+                    status={
+                      requestData.media[
+                        requestData.is4k ? 'status4k' : 'status'
+                      ]
+                    }
+                    downloadItem={requestDownloadStatus}
+                    title={isMovie(title) ? title.title : title.name}
+                    inProgress={requestDownloadStatus.length > 0}
+                    is4k={requestData.is4k}
+                    tmdbId={requestData.media.tmdbId}
+                    mediaType={requestData.type}
+                    plexUrl={requestData.is4k ? plexUrl4k : plexUrl}
+                    serviceUrl={
+                      requestData.is4k
+                        ? requestData.media.serviceUrl4k
+                        : requestData.media.serviceUrl
+                    }
+                  />
+                  <ReadyEta
+                    downloads={requestDownloadStatus}
+                    className="ml-2"
+                  />
+                </>
               )}
             </div>
             <div className="card-field">

@@ -2,6 +2,7 @@ import Spinner from '@app/assets/spinner.svg';
 import Badge from '@app/components/Common/Badge';
 import Button from '@app/components/Common/Button';
 import CachedImage from '@app/components/Common/CachedImage';
+import ReadyEta from '@app/components/Common/ReadyEta';
 import Tooltip from '@app/components/Common/Tooltip';
 import RequestModal from '@app/components/RequestModal';
 import StatusBadge from '@app/components/StatusBadge';
@@ -458,23 +459,26 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
                 {intl.formatMessage(globalMessages.pending)}
               </Badge>
             ) : (
-              <StatusBadge
-                status={
-                  requestData.media[requestData.is4k ? 'status4k' : 'status']
-                }
-                downloadItem={requestDownloadStatus}
-                title={isMovie(title) ? title.title : title.name}
-                inProgress={requestDownloadStatus.length > 0}
-                is4k={requestData.is4k}
-                tmdbId={requestData.media.tmdbId}
-                mediaType={requestData.type}
-                plexUrl={requestData.is4k ? plexUrl4k : plexUrl}
-                serviceUrl={
-                  requestData.is4k
-                    ? requestData.media.serviceUrl4k
-                    : requestData.media.serviceUrl
-                }
-              />
+              <>
+                <StatusBadge
+                  status={
+                    requestData.media[requestData.is4k ? 'status4k' : 'status']
+                  }
+                  downloadItem={requestDownloadStatus}
+                  title={isMovie(title) ? title.title : title.name}
+                  inProgress={requestDownloadStatus.length > 0}
+                  is4k={requestData.is4k}
+                  tmdbId={requestData.media.tmdbId}
+                  mediaType={requestData.type}
+                  plexUrl={requestData.is4k ? plexUrl4k : plexUrl}
+                  serviceUrl={
+                    requestData.is4k
+                      ? requestData.media.serviceUrl4k
+                      : requestData.media.serviceUrl
+                  }
+                />
+                <ReadyEta downloads={requestDownloadStatus} className="ml-2" />
+              </>
             )}
           </div>
           <div className="flex flex-1 items-end space-x-2">
