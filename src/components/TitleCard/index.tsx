@@ -19,6 +19,7 @@ import {
   formatDownloadEtaShort,
 } from '@app/utils/downloadEta';
 import { cardRefreshInterval } from '@app/utils/refreshIntervalHelper';
+import { movieReleaseStage } from '@app/utils/releaseStage';
 import {
   followedSeasons,
   formatSeasonRanges,
@@ -244,10 +245,29 @@ const TitleCard = ({
 
     if (!showRing) {
       // Only from the card's own fetch: the list's copy may be old.
-      return latest &&
-        (currentStatus === MediaStatus.PROCESSING || searchingSeason)
+      if (
+        !latest ||
+        (currentStatus !== MediaStatus.PROCESSING && !searchingSeason)
+      ) {
+        return undefined;
+      }
+
+      // Nothing to grab yet for a film that isn't out to stream or buy.
+      const stage =
+        mediaType === 'movie' && !waitingLabel
+          ? movieReleaseStage(latest as MovieDetails, now)
+          : 'released';
+
+      return stage === 'released'
         ? searching
-        : undefined;
+        : {
+            text: intl.formatMessage(
+              stage === 'inTheaters'
+                ? downloadEtaMessages.inTheaters
+                : downloadEtaMessages.notReleased
+            ),
+            tone: 'muted',
+          };
     }
 
     if (ringImporting) {

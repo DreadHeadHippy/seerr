@@ -537,9 +537,9 @@ const UserGeneralSettings = () => {
                           <Field
                             id="storageLimitGb"
                             name="storageLimitGb"
-                            type="number"
-                            min={0}
+                            type="text"
                             inputMode="numeric"
+                            pattern="[0-9]*"
                             className="short"
                           />
                         </div>

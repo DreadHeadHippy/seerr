@@ -3031,6 +3031,7 @@ paths:
                               importing,
                               searching,
                               unreleased,
+                              inTheaters,
                               notSent,
                             ]
   /downloads/live:

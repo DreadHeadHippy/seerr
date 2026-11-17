@@ -61,6 +61,22 @@ describe('classifyMovie', () => {
     );
   });
 
+  it('uses Radarr’s release stage, whatever minimum availability says', () => {
+    const movie = { hasFile: false, monitored: true, isAvailable: true };
+    assert.equal(
+      classifyMovie({ ...idle, movie: { ...movie, status: 'announced' } }),
+      'unreleased'
+    );
+    assert.equal(
+      classifyMovie({ ...idle, movie: { ...movie, status: 'inCinemas' } }),
+      'inTheaters'
+    );
+    assert.equal(
+      classifyMovie({ ...idle, movie: { ...movie, status: 'released' } }),
+      'searching'
+    );
+  });
+
   it('flags requests that never reached Radarr', () => {
     assert.equal(
       classifyMovie({ ...idle, sent: false, movie: null }),

@@ -10,8 +10,9 @@ import { In } from 'typeorm';
 
 /**
  * - downloading / importing: on its way, per the download tracker
- * - searching: released (or aired) and missing, nothing grabbed
- * - unreleased: a movie not out yet (per Radarr's minimum availability)
+ * - searching: out (or aired) and missing, nothing grabbed
+ * - unreleased: a movie not out yet
+ * - inTheaters: a movie in cinemas, not yet out to stream or buy
  * - notSent: Seerr couldn't add it to Radarr/Sonarr, or it's gone from there
  */
 export type InProgressPhase =
@@ -19,6 +20,7 @@ export type InProgressPhase =
   | 'importing'
   | 'searching'
   | 'unreleased'
+  | 'inTheaters'
   | 'notSent';
 
 export interface InProgressItem {
@@ -61,7 +63,9 @@ const common = ({
  */
 export const classifyMovie = (
   state: Common & {
-    movie: Lookup<Pick<RadarrMovie, 'hasFile' | 'monitored' | 'isAvailable'>>;
+    movie: Lookup<
+      Pick<RadarrMovie, 'hasFile' | 'monitored' | 'isAvailable' | 'status'>
+    >;
   }
 ): InProgressPhase | undefined => {
   const settled = common(state);
@@ -83,6 +87,16 @@ export const classifyMovie = (
 
   if (movie.hasFile || !movie.monitored) {
     return undefined;
+  }
+
+  // Radarr's release stage, not isAvailable: with minimum availability set
+  // to "announced", a film still being made counts as available.
+  if (movie.status === 'announced' || movie.status === 'tba') {
+    return 'unreleased';
+  }
+
+  if (movie.status === 'inCinemas') {
+    return 'inTheaters';
   }
 
   return movie.isAvailable ? 'searching' : 'unreleased';
@@ -152,6 +166,7 @@ const PHASE_ORDER: InProgressPhase[] = [
   'downloading',
   'importing',
   'searching',
+  'inTheaters',
   'unreleased',
   'notSent',
 ];

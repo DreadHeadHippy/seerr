@@ -15,7 +15,8 @@ export const inProgressMessages = defineMessages('components.InProgress', {
   downloading: 'Downloading',
   importing: 'Importing',
   searching: 'Searching',
-  unreleased: 'Not Released Yet',
+  unreleased: 'Not Out Yet',
+  inTheaters: 'In Theaters',
   notSent: 'Not Sent to Radarr/Sonarr',
   nothing: 'Nothing in progress right now.',
 });
@@ -30,6 +31,7 @@ const PHASES: InProgressPhase[] = [
   'downloading',
   'importing',
   'searching',
+  'inTheaters',
   'unreleased',
   'notSent',
 ];
@@ -39,6 +41,7 @@ const WAITING_LABELS: Partial<
   Record<InProgressPhase, keyof typeof downloadEtaMessages>
 > = {
   unreleased: 'notReleased',
+  inTheaters: 'inTheaters',
   notSent: 'notSent',
 };
 

@@ -31,6 +31,8 @@ export interface RadarrMovie {
   hasFile: boolean;
   /** Bytes of its files on disk. */
   sizeOnDisk?: number;
+  /** Release stage: tba, announced, inCinemas, released or deleted. */
+  status?: string;
   tags: number[];
   movieFile?: {
     id: number;
