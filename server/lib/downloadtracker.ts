@@ -69,6 +69,7 @@ class DownloadTracker {
   /** Finished torrents whose *arr we already asked to import. */
   private nudged = new Set<string>();
   private resyncTimer?: ReturnType<typeof setTimeout>;
+  private warnedNoQbit = false;
 
   /**
    * The *arr queue's numbers, replaced by qBittorrent's live ones when the
@@ -226,11 +227,6 @@ class DownloadTracker {
    * download client about once a minute.
    */
   public async updateLiveProgress() {
-    if (!isLiveTrackingEnabled()) {
-      this.live = new Map();
-      return;
-    }
-
     const hashes = [
       ...[
         ...Object.values(this.radarrServers),
@@ -240,6 +236,20 @@ class DownloadTracker {
       ...this.grabs.keys(),
     ];
 
+    if (!isLiveTrackingEnabled()) {
+      if (hashes.some(Boolean) && !this.warnedNoQbit) {
+        this.warnedNoQbit = true;
+        logger.warn(
+          'Downloads are being tracked but qBittorrent is not set up (Settings → Services), so progress lags the *arr queues',
+          { label: 'Download Tracker' }
+        );
+      }
+
+      this.live = new Map();
+      return;
+    }
+
+    this.warnedNoQbit = false;
     this.live = await fetchLiveProgress(hashes);
     this.nudgeFinished();
   }

@@ -18,6 +18,7 @@ import { withProperties } from '@app/utils/typeHelpers';
 import { Transition } from '@headlessui/react';
 import {
   ArrowDownTrayIcon,
+  CheckIcon,
   EyeIcon,
   EyeSlashIcon,
   MinusCircleIcon,
@@ -142,14 +143,33 @@ const TitleCard = ({
     }
   }, [activeDownloads.length]);
 
+  const showRing =
+    (activeDownloads.length > 0 && currentStatus !== MediaStatus.AVAILABLE) ||
+    importing;
+  /** Just became available while on screen: a big check, briefly. */
+  const [justAvailable, setJustAvailable] = useState(false);
+
   useEffect(() => {
     if (latestStatus !== undefined && latestStatus !== currentStatus) {
       setBadgeChanged(true);
       setCurrentStatus(latestStatus);
+
+      if (latestStatus === MediaStatus.AVAILABLE) {
+        setJustAvailable(true);
+      }
     }
     // Only when the server's status changes, not when it's set locally.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latestStatus]);
+
+  useEffect(() => {
+    if (!justAvailable) {
+      return;
+    }
+
+    const timer = setTimeout(() => setJustAvailable(false), 5000);
+    return () => clearTimeout(timer);
+  }, [justAvailable]);
 
   // Just to get the year from the date
   if (year) {
@@ -530,36 +550,53 @@ const TitleCard = ({
             {currentStatus && currentStatus !== MediaStatus.UNKNOWN && (
               <div className="flex flex-col items-center gap-1">
                 <div className="pointer-events-none z-40 flex">
-                  {(activeDownloads.length > 0 &&
-                    currentStatus !== MediaStatus.AVAILABLE) ||
-                  importing ? (
-                    <DownloadRing
-                      downloads={activeDownloads}
-                      complete={importing}
-                      shrink
-                    />
-                  ) : (
-                    <Transition
-                      key={currentStatus}
-                      appear={badgeChanged}
-                      show
-                      enter="transition duration-500 ease-out"
-                      enterFrom="scale-0 opacity-0"
-                      enterTo="scale-100 opacity-100"
-                    >
-                      <div className="flex">
-                        <StatusBadgeMini
-                          status={currentStatus}
-                          inProgress={inProgress && !latest && !downloads}
-                          shrink
-                        />
-                      </div>
-                    </Transition>
-                  )}
+                  <Transition
+                    key={currentStatus}
+                    appear={badgeChanged}
+                    show
+                    enter="transition duration-500 ease-out"
+                    enterFrom="scale-0 opacity-0"
+                    enterTo="scale-100 opacity-100"
+                  >
+                    <div className="flex">
+                      <StatusBadgeMini
+                        status={currentStatus}
+                        inProgress={inProgress && !latest && !downloads}
+                        shrink
+                      />
+                    </div>
+                  </Transition>
                 </div>
               </div>
             )}
           </div>
+          {/* Download progress, then a check once it's in the library. Hidden
+              while hovering so it doesn't cover the details. */}
+          {!showDetail && (
+            <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center">
+              {showRing ? (
+                <DownloadRing
+                  downloads={activeDownloads}
+                  complete={importing}
+                />
+              ) : (
+                <Transition
+                  appear
+                  show={justAvailable}
+                  enter="transition duration-500 ease-out"
+                  enterFrom="scale-0 opacity-0"
+                  enterTo="scale-100 opacity-100"
+                  leave="transition-opacity duration-700"
+                  leaveFrom="opacity-100"
+                  leaveTo="opacity-0"
+                >
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-500/90 text-white shadow-lg ring-4 ring-green-300/50 sm:h-20 sm:w-20">
+                    <CheckIcon className="h-10 w-10 sm:h-12 sm:w-12" />
+                  </div>
+                </Transition>
+              )}
+            </div>
+          )}
           <Transition
             as={Fragment}
             show={isUpdating}

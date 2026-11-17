@@ -128,6 +128,10 @@ export const fetchLiveProgress = async (
   return result;
 };
 
+/** Problems reading qBittorrent are warned about at most this often. */
+const WARN_EVERY_MS = 5 * 60 * 1000;
+let lastWarning = 0;
+
 const readTorrents = async (
   api: QbittorrentAPI,
   wanted: string[]
@@ -135,18 +139,32 @@ const readTorrents = async (
   try {
     const torrents = await api.getTorrents(wanted);
     const now = Date.now();
-
-    return new Map(
+    const live = new Map(
       torrents.map((torrent) => [
         torrent.hash.toLowerCase(),
         toLiveProgress(torrent, now),
       ])
     );
+    const missing = wanted.filter((hash) => !live.has(hash));
+
+    if (missing.length > 0) {
+      // Usually a torrent the *arr hasn't sent yet, or one already removed.
+      logger.debug(
+        `qBittorrent doesn't have ${missing.length} of ${wanted.length} tracked torrent(s); using the *arr queue for those`,
+        { label: 'Download Tracker', missing }
+      );
+    }
+
+    return live;
   } catch (e) {
-    logger.debug('Unable to read live progress from qBittorrent', {
-      label: 'Download Tracker',
-      errorMessage: e.message,
-    });
+    if (Date.now() - lastWarning > WARN_EVERY_MS) {
+      lastWarning = Date.now();
+      logger.warn(
+        'Unable to read live progress from qBittorrent; showing the *arr queue numbers instead',
+        { label: 'Download Tracker', errorMessage: e.message }
+      );
+    }
+
     return new Map();
   }
 };
