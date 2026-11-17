@@ -14,7 +14,10 @@ import useToasts from '@app/hooks/useToasts';
 import { Permission, UserType, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
-import { downloadEtaMessages, formatDownloadEta } from '@app/utils/downloadEta';
+import {
+  downloadEtaMessages,
+  formatDownloadEtaShort,
+} from '@app/utils/downloadEta';
 import { cardRefreshInterval } from '@app/utils/refreshIntervalHelper';
 import {
   followedSeasons,
@@ -215,17 +218,21 @@ const TitleCard = ({
       return intl.formatMessage(downloadEtaMessages.importing);
     }
 
-    const eta = formatDownloadEta(intl, series ? series.etaMs : live.etaMs);
-    const ready =
-      series && series.ready.length > 0
+    // Short, to fit beside the type tag on a narrow card. Which seasons are
+    // in shows on the ring; say so here only when there's no ETA.
+    const eta = formatDownloadEtaShort(
+      intl,
+      series ? series.etaMs : live.etaMs
+    );
+
+    return (
+      eta ??
+      (series && series.ready.length > 0
         ? intl.formatMessage(downloadEtaMessages.seasonsReady, {
             seasons: formatSeasonRanges(series.ready),
           })
-        : undefined;
-
-    return ready && eta
-      ? intl.formatMessage(downloadEtaMessages.readyAndEta, { ready, eta })
-      : (ready ?? eta);
+        : undefined)
+    );
   })();
   /** Just became available while on screen: a big check, briefly. */
   const [justAvailable, setJustAvailable] = useState(false);
@@ -557,16 +564,29 @@ const TitleCard = ({
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             fill
           />
-          <div className="absolute left-0 right-0 flex items-center justify-between p-2">
-            <div className="pointer-events-none z-40 flex flex-wrap items-center gap-1 self-start">
+          <div
+            className={`absolute left-0 right-0 flex items-center justify-between p-2 ${
+              currentStatus && currentStatus !== MediaStatus.UNKNOWN
+                ? 'pr-6 sm:pr-7'
+                : ''
+            }`}
+          >
+            <div className="pointer-events-none z-40 flex min-w-0 flex-nowrap items-center gap-1 self-start">
               <div
-                className={`rounded-full border shadow-md ${
+                className={`shrink-0 rounded-full border shadow-md ${
                   mediaType === 'movie' || mediaType === 'collection'
                     ? 'border-blue-500 bg-blue-600/80'
                     : 'border-purple-600 bg-purple-600/80'
                 }`}
               >
-                <div className="flex h-4 items-center px-2 py-2 text-center text-xs font-medium uppercase tracking-wider text-white sm:h-5">
+                <div
+                  className={`flex h-4 items-center py-2 text-center font-medium uppercase text-white sm:h-5 ${
+                    // Smaller beside an ETA, so both fit on a 144px card.
+                    etaLabel
+                      ? 'px-1.5 text-[10px] tracking-wide'
+                      : 'px-2 text-xs tracking-wider'
+                  }`}
+                >
                   {mediaType === 'movie'
                     ? intl.formatMessage(globalMessages.movie)
                     : mediaType === 'collection'
@@ -575,9 +595,9 @@ const TitleCard = ({
                 </div>
               </div>
               {etaLabel && (
-                <div className="rounded-full border border-indigo-500 bg-indigo-600/80 shadow-md">
-                  <div className="flex h-4 items-center whitespace-nowrap px-2 py-2 text-xs font-medium text-white sm:h-5">
-                    {etaLabel}
+                <div className="min-w-0 rounded-full border border-indigo-500 bg-indigo-600/80 shadow-md">
+                  <div className="flex h-4 items-center px-1.5 py-2 text-[10px] font-medium text-white sm:h-5">
+                    <span className="truncate">{etaLabel}</span>
                   </div>
                 </div>
               )}
@@ -637,29 +657,28 @@ const TitleCard = ({
                   </Button>
                 </Tooltip>
               )}
-            {currentStatus && currentStatus !== MediaStatus.UNKNOWN && (
-              <div className="flex flex-col items-center gap-1">
-                <div className="pointer-events-none z-40 flex">
-                  <Transition
-                    key={currentStatus}
-                    appear={badgeChanged}
-                    show
-                    enter="transition duration-500 ease-out"
-                    enterFrom="scale-0 opacity-0"
-                    enterTo="scale-100 opacity-100"
-                  >
-                    <div className="flex">
-                      <StatusBadgeMini
-                        status={currentStatus}
-                        inProgress={inProgress && !latest && !downloads}
-                        shrink
-                      />
-                    </div>
-                  </Transition>
-                </div>
-              </div>
-            )}
           </div>
+          {/* Tucked into the corner, clear of the tags. */}
+          {currentStatus && currentStatus !== MediaStatus.UNKNOWN && (
+            <div className="pointer-events-none absolute right-1 top-1 z-40 flex">
+              <Transition
+                key={currentStatus}
+                appear={badgeChanged}
+                show
+                enter="transition duration-500 ease-out"
+                enterFrom="scale-0 opacity-0"
+                enterTo="scale-100 opacity-100"
+              >
+                <div className="flex">
+                  <StatusBadgeMini
+                    status={currentStatus}
+                    inProgress={inProgress && !latest && !downloads}
+                    shrink
+                  />
+                </div>
+              </Transition>
+            </div>
+          )}
           {/* Download progress, then a check once it's in the library. Hidden
               while hovering so it doesn't cover the details. */}
           {!showDetail && (
