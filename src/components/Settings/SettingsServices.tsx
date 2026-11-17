@@ -11,6 +11,7 @@ import LastfmSettings from '@app/components/Settings/LastfmSettings';
 import LidarrModal from '@app/components/Settings/LidarrModal';
 import OverrideRuleModal from '@app/components/Settings/OverrideRule/OverrideRuleModal';
 import OverrideRuleTiles from '@app/components/Settings/OverrideRule/OverrideRuleTiles';
+import QbittorrentSettings from '@app/components/Settings/QbittorrentSettings';
 import RadarrModal from '@app/components/Settings/RadarrModal';
 import SonarrModal from '@app/components/Settings/SonarrModal';
 import globalMessages from '@app/i18n/globalMessages';
@@ -550,6 +551,7 @@ const SettingsServices = () => {
           </>
         )}
       </div>
+      <QbittorrentSettings />
       <div className="mb-6 mt-10">
         <h3 className="heading">
           {intl.formatMessage(messages.lidarrsettings)}

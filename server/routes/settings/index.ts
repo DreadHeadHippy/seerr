@@ -3,6 +3,7 @@ import JellyfinAPI from '@server/api/jellyfin';
 import LastfmAPI from '@server/api/lastfm';
 import PlexAPI from '@server/api/plexapi';
 import PlexTvAPI from '@server/api/plextv';
+import QbittorrentAPI from '@server/api/qbittorrent';
 import TautulliAPI from '@server/api/tautulli';
 import { ApiErrorCode } from '@server/constants/error';
 import { getRepository } from '@server/datasource';
@@ -575,6 +576,52 @@ settingsRoutes.post('/lastfm', async (req, res, next) => {
   await settings.save();
 
   return res.status(200).json(settings.lastfm);
+});
+
+settingsRoutes.get('/qbittorrent', (_req, res) => {
+  const settings = getSettings();
+
+  res.status(200).json(settings.qbittorrent);
+});
+
+settingsRoutes.post('/qbittorrent', async (req, res, next) => {
+  const settings = getSettings();
+  const url = (req.body.url ?? '').toString().trim().replace(/\/+$/, '');
+  const username = (req.body.username ?? '').toString().trim();
+  const password = (req.body.password ?? '').toString();
+
+  if (url) {
+    if (!/^https?:\/\//i.test(url)) {
+      return next({
+        status: 400,
+        message: 'The qBittorrent URL must start with http:// or https://',
+      });
+    }
+
+    try {
+      await new QbittorrentAPI({ url, username, password }).testConnection();
+    } catch (e) {
+      logger.error('Something went wrong connecting to qBittorrent', {
+        label: 'API',
+        errorMessage: e.message,
+      });
+      return next({
+        status: 500,
+        message: 'Unable to connect to qBittorrent.',
+      });
+    }
+  }
+
+  settings.qbittorrent = url
+    ? {
+        url,
+        username: username || undefined,
+        password: password || undefined,
+      }
+    : {};
+  await settings.save();
+
+  return res.status(200).json(settings.qbittorrent);
 });
 
 settingsRoutes.get(

@@ -1,6 +1,11 @@
 import RadarrAPI from '@server/api/servarr/radarr';
 import SonarrAPI from '@server/api/servarr/sonarr';
 import { MediaType } from '@server/constants/media';
+import {
+  fetchLiveProgress,
+  isLiveTrackingEnabled,
+  type LiveProgress,
+} from '@server/lib/liveDownloads';
 import { anyDownloadLeft, scanMediaServerSoon } from '@server/lib/scanSoon';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
@@ -19,7 +24,8 @@ export interface DownloadingItem {
   sizeLeft: number;
   status: string;
   timeLeft: string;
-  estimatedCompletionTime: Date;
+  /** Missing when there is no estimate (queued, paused, stalled). */
+  estimatedCompletionTime?: Date;
   title: string;
   downloadId: string;
   episode?: EpisodeNumberResult;
@@ -28,6 +34,26 @@ export interface DownloadingItem {
 class DownloadTracker {
   private radarrServers: Record<number, DownloadingItem[]> = {};
   private sonarrServers: Record<number, DownloadingItem[]> = {};
+  /** Live qBittorrent progress by lowercase torrent hash. */
+  private live = new Map<string, LiveProgress>();
+
+  /**
+   * The *arr queue's numbers, replaced by qBittorrent's live ones when the
+   * download is one of its torrents.
+   */
+  private withLive(items: DownloadingItem[]): DownloadingItem[] {
+    if (this.live.size === 0) {
+      return items;
+    }
+
+    return items.map((item) => {
+      const live = item.downloadId
+        ? this.live.get(item.downloadId.toLowerCase())
+        : undefined;
+
+      return live ? { ...item, ...live } : item;
+    });
+  }
 
   public getMovieProgress(
     serverId: number,
@@ -37,8 +63,10 @@ class DownloadTracker {
       return [];
     }
 
-    return this.radarrServers[serverId].filter(
-      (item) => item.externalId === externalServiceId
+    return this.withLive(
+      this.radarrServers[serverId].filter(
+        (item) => item.externalId === externalServiceId
+      )
     );
   }
 
@@ -50,19 +78,45 @@ class DownloadTracker {
       return [];
     }
 
-    return this.sonarrServers[serverId].filter(
-      (item) => item.externalId === externalServiceId
+    return this.withLive(
+      this.sonarrServers[serverId].filter(
+        (item) => item.externalId === externalServiceId
+      )
     );
   }
 
   public async resetDownloadTracker() {
     this.radarrServers = {};
     this.sonarrServers = {};
+    this.live = new Map();
   }
 
-  public updateDownloads() {
-    this.updateRadarrDownloads();
-    this.updateSonarrDownloads();
+  public async updateDownloads() {
+    await Promise.all([
+      this.updateRadarrDownloads(),
+      this.updateSonarrDownloads(),
+    ]);
+    // New downloads get live numbers right away, not on the next tick.
+    await this.updateLiveProgress();
+  }
+
+  /**
+   * Re-reads progress for every tracked download from qBittorrent. Cheap, so
+   * it runs every few seconds; the *arr queues only refresh from their
+   * download client about once a minute.
+   */
+  public async updateLiveProgress() {
+    if (!isLiveTrackingEnabled()) {
+      this.live = new Map();
+      return;
+    }
+
+    const hashes = [
+      ...Object.values(this.radarrServers),
+      ...Object.values(this.sonarrServers),
+    ].flatMap((items) => items.map((item) => item.downloadId));
+
+    this.live = await fetchLiveProgress(hashes);
   }
 
   private async updateRadarrDownloads() {
@@ -79,7 +133,7 @@ class DownloadTracker {
 
     // Load downloads from Radarr servers, Enable Scan or not: Enable Scan is
     // about availability, and requesters should always see progress
-    Promise.all(
+    await Promise.all(
       filteredServers.map(async (server) => {
         const radarr = new RadarrAPI({
           apiKey: server.apiKey,
@@ -163,7 +217,7 @@ class DownloadTracker {
 
     // Load downloads from Sonarr servers, Enable Scan or not: Enable Scan is
     // about availability, and requesters should always see progress
-    Promise.all(
+    await Promise.all(
       filteredServers.map(async (server) => {
         const sonarr = new SonarrAPI({
           apiKey: server.apiKey,

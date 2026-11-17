@@ -69,6 +69,13 @@ export interface LastfmSettings {
   apiKey?: string;
 }
 
+/** Optional: live download progress straight from qBittorrent. */
+export interface QbittorrentSettings {
+  url?: string;
+  username?: string;
+  password?: string;
+}
+
 export interface DVRSettings {
   id: number;
   name: string;
@@ -397,6 +404,7 @@ export interface AllSettings {
   jellyfin: JellyfinSettings;
   tautulli: TautulliSettings;
   lastfm: LastfmSettings;
+  qbittorrent: QbittorrentSettings;
   radarr: RadarrSettings[];
   sonarr: SonarrSettings[];
   lidarr: LidarrSettings[];
@@ -474,6 +482,7 @@ class Settings {
       },
       tautulli: {},
       lastfm: {},
+      qbittorrent: {},
       metadataSettings: {
         tv: MetadataProviderType.TMDB,
         anime: MetadataProviderType.TMDB,
@@ -694,6 +703,14 @@ class Settings {
 
   set lastfm(data: LastfmSettings) {
     this.data.lastfm = mergeSettings(this.data.lastfm, data);
+  }
+
+  get qbittorrent(): QbittorrentSettings {
+    return this.data.qbittorrent;
+  }
+
+  set qbittorrent(data: QbittorrentSettings) {
+    this.data.qbittorrent = data;
   }
 
   get tautulli(): TautulliSettings {

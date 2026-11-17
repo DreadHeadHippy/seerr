@@ -565,6 +565,16 @@ components:
         apiKey:
           type: string
           example: 'abc123'
+    QbittorrentSettings:
+      type: object
+      properties:
+        url:
+          type: string
+          example: 'http://192.168.1.10:8080'
+        username:
+          type: string
+        password:
+          type: string
     TautulliSettings:
       type: object
       properties:
@@ -2938,6 +2948,37 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/LastfmSettings'
+  /settings/qbittorrent:
+    get:
+      summary: Get qBittorrent settings
+      description: Retrieves the qBittorrent connection used for live download progress.
+      tags:
+        - settings
+      responses:
+        '200':
+          description: 'Values were successfully retrieved'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QbittorrentSettings'
+    post:
+      summary: Update qBittorrent settings
+      description: Tests and saves the qBittorrent connection. An empty URL turns live progress off.
+      tags:
+        - settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QbittorrentSettings'
+      responses:
+        '200':
+          description: 'Values were successfully updated'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QbittorrentSettings'
   /settings/tautulli:
     get:
       summary: Get Tautulli settings

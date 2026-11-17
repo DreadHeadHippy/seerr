@@ -167,6 +167,10 @@ class ServarrBase<QueueItemAppendT> extends ExternalAPI {
         `/queue`,
         {
           params: {
+            // The API returns only 10 items by default, so a busy queue
+            // would hide requests from download tracking.
+            page: 1,
+            pageSize: 1000,
             includeEpisode: true,
           },
         }

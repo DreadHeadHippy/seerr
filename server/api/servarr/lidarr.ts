@@ -94,6 +94,8 @@ export interface LidarrQueueItem {
   estimatedCompletionTime?: string;
   status: string;
   trackedDownloadState: string;
+  /** The torrent hash for torrent downloads. */
+  downloadId?: string;
   album?: { foreignAlbumId?: string };
   artist?: { foreignArtistId?: string };
 }

@@ -1,5 +1,6 @@
 import type LidarrAPI from '@server/api/servarr/lidarr';
 import type { MusicDownload } from '@server/interfaces/api/musicInterfaces';
+import { fetchLiveProgress } from '@server/lib/liveDownloads';
 import logger from '@server/logger';
 
 /**
@@ -81,6 +82,8 @@ export const getMusicDownloads = async (
 ): Promise<MusicDownloads> => {
   try {
     const queue = await lidarr.getDownloadQueue();
+    // Lidarr's queue lags its download client; qBittorrent's numbers don't.
+    const live = await fetchLiveProgress(queue.map((item) => item.downloadId));
     const now = Date.now();
     const albums = new Map<string, Tally>();
     const artists = new Map<string, Tally>();
@@ -90,30 +93,27 @@ export const getMusicDownloads = async (
         continue;
       }
 
-      const eta = item.estimatedCompletionTime
-        ? Date.parse(item.estimatedCompletionTime)
-        : NaN;
-      const readyAt = IMPORTING_STATES.has(item.trackedDownloadState)
-        ? now + IMPORT_BUFFER_MS
-        : Number.isFinite(eta)
-          ? Math.max(eta, now) + IMPORT_BUFFER_MS
-          : // Queued, paused or stalled: no honest estimate.
-            undefined;
+      const torrent = item.downloadId
+        ? live.get(item.downloadId.toLowerCase())
+        : undefined;
+      const size = torrent?.size ?? item.size;
+      const sizeleft = torrent?.sizeLeft ?? item.sizeleft;
+      const eta = torrent
+        ? (torrent.estimatedCompletionTime?.getTime() ?? NaN)
+        : item.estimatedCompletionTime
+          ? Date.parse(item.estimatedCompletionTime)
+          : NaN;
+      const readyAt =
+        IMPORTING_STATES.has(item.trackedDownloadState) ||
+        torrent?.status === 'completed'
+          ? now + IMPORT_BUFFER_MS
+          : Number.isFinite(eta)
+            ? Math.max(eta, now) + IMPORT_BUFFER_MS
+            : // Queued, paused or stalled: no honest estimate.
+              undefined;
 
-      add(
-        albums,
-        item.album?.foreignAlbumId,
-        item.size,
-        item.sizeleft,
-        readyAt
-      );
-      add(
-        artists,
-        item.artist?.foreignArtistId,
-        item.size,
-        item.sizeleft,
-        readyAt
-      );
+      add(albums, item.album?.foreignAlbumId, size, sizeleft, readyAt);
+      add(artists, item.artist?.foreignArtistId, size, sizeleft, readyAt);
     }
 
     return { albums: finish(albums), artists: finish(artists) };

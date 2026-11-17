@@ -232,6 +232,12 @@ export const startJobs = (): void => {
     }),
   });
 
+  // Live download progress from qBittorrent, when configured. Not a listed
+  // job: it only re-reads progress for downloads the sync above found.
+  setInterval(() => {
+    downloadTracker.updateLiveProgress();
+  }, 10 * 1000);
+
   // Reset download sync everyday at 01:00 am
   scheduledJobs.push({
     id: 'download-sync-reset',
