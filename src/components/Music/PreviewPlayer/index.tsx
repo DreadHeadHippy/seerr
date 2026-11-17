@@ -6,6 +6,8 @@ import {
   ForwardIcon,
   PauseIcon,
   PlayIcon,
+  SpeakerWaveIcon,
+  SpeakerXMarkIcon,
   XMarkIcon,
 } from '@heroicons/react/24/solid';
 import type {
@@ -33,7 +35,27 @@ const messages = defineMessages('components.Music.PreviewPlayer', {
   next: 'Next Song',
   close: 'Stop Preview',
   trackCount: 'Song {current} of {total}',
+  volume: 'Volume',
+  mute: 'Mute',
+  unmute: 'Unmute',
 });
+
+const VOLUME_KEY = 'music-preview-volume';
+
+/** The volume the viewer last chose, kept between visits. */
+const loadVolume = (): number => {
+  try {
+    const saved = Number(localStorage.getItem(VOLUME_KEY));
+
+    if (Number.isFinite(saved) && saved > 0 && saved <= 1) {
+      return saved;
+    }
+  } catch {
+    // Storage can be blocked (private windows); fall back to the default.
+  }
+
+  return 0.8;
+};
 
 /**
  * A silent clip played straight from the click, before the previews load.
@@ -83,6 +105,33 @@ export const MusicPreviewProvider = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const [loadingArtist, setLoadingArtist] = useState<string>();
   const [progress, setProgress] = useState(0);
+  const [volume, setVolume] = useState(0.8);
+  const [isMuted, setIsMuted] = useState(false);
+
+  // Read after mount so server and client render the same markup.
+  useEffect(() => {
+    setVolume(loadVolume());
+  }, []);
+
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = volume;
+      audioRef.current.muted = isMuted;
+    }
+  }, [volume, isMuted]);
+
+  const changeVolume = (value: number) => {
+    setVolume(value);
+    setIsMuted(value === 0);
+
+    if (value > 0) {
+      try {
+        localStorage.setItem(VOLUME_KEY, String(value));
+      } catch {
+        // Not saved; the slider still works for this visit.
+      }
+    }
+  };
 
   const track = queue?.tracks[index];
 
@@ -332,6 +381,41 @@ export const MusicPreviewProvider = ({
                 >
                   <ForwardIcon className="h-5 w-5" />
                 </button>
+                {/* Phones (iOS ignores volume changes) use their own buttons. */}
+                <div className="ml-1 hidden items-center gap-1 sm:flex">
+                  <button
+                    type="button"
+                    className="rounded-full p-1.5 transition hover:bg-gray-700 hover:text-white"
+                    onClick={() =>
+                      volume === 0
+                        ? changeVolume(loadVolume())
+                        : setIsMuted(!isMuted)
+                    }
+                    aria-label={intl.formatMessage(
+                      isMuted || volume === 0 ? messages.unmute : messages.mute
+                    )}
+                    title={intl.formatMessage(
+                      isMuted || volume === 0 ? messages.unmute : messages.mute
+                    )}
+                  >
+                    {isMuted || volume === 0 ? (
+                      <SpeakerXMarkIcon className="h-5 w-5" />
+                    ) : (
+                      <SpeakerWaveIcon className="h-5 w-5" />
+                    )}
+                  </button>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    value={isMuted ? 0 : volume}
+                    onChange={(e) => changeVolume(Number(e.target.value))}
+                    aria-label={intl.formatMessage(messages.volume)}
+                    title={intl.formatMessage(messages.volume)}
+                    className="h-1 w-20 cursor-pointer accent-indigo-500"
+                  />
+                </div>
                 <button
                   type="button"
                   className="ml-1 rounded-full p-1.5 transition hover:bg-gray-700 hover:text-white"
