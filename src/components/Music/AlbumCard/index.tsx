@@ -1,6 +1,7 @@
 import Button from '@app/components/Common/Button';
 import CachedImage from '@app/components/Common/CachedImage';
 import StatusBadgeMini from '@app/components/Common/StatusBadgeMini';
+import { MusicEtaPill } from '@app/components/Music/MusicEta';
 import MusicRequestModal from '@app/components/RequestModal/MusicRequestModal';
 import { useIsTouch } from '@app/hooks/useIsTouch';
 import { Permission, useUser } from '@app/hooks/useUser';
@@ -32,9 +33,28 @@ const TYPE_MESSAGES: Record<string, keyof typeof messages> = {
 
 interface AlbumCardProps {
   album: MusicAlbumResult;
+  /** Fills its grid cell instead of the fixed slider width. */
+  canExpand?: boolean;
 }
 
-const AlbumCard = ({ album: initialAlbum }: AlbumCardProps) => {
+/**
+ * MusicBrainz dates can be a full date, a year and month, or just a year.
+ */
+const releaseDateOptions = (
+  date: string
+): Intl.DateTimeFormatOptions | undefined =>
+  /^\d{4}-\d{2}-\d{2}$/.test(date)
+    ? { month: 'short', day: 'numeric', year: 'numeric' }
+    : /^\d{4}-\d{2}$/.test(date)
+      ? { month: 'short', year: 'numeric' }
+      : /^\d{4}$/.test(date)
+        ? { year: 'numeric' }
+        : undefined;
+
+const AlbumCard = ({
+  album: initialAlbum,
+  canExpand = false,
+}: AlbumCardProps) => {
   const intl = useIntl();
   const isTouch = useIsTouch();
   const { hasPermission } = useUser();
@@ -56,9 +76,10 @@ const AlbumCard = ({ album: initialAlbum }: AlbumCardProps) => {
 
   const coverUrl = imageFailed ? undefined : album.coverUrl;
   const typeMessage = TYPE_MESSAGES[album.albumType];
+  const dateOptions = releaseDateOptions(album.releaseDate);
 
   return (
-    <div className="w-36 sm:w-36 md:w-44">
+    <div className={canExpand ? 'w-full' : 'w-36 sm:w-36 md:w-44'}>
       <MusicRequestModal
         show={showRequestModal}
         album={album}
@@ -118,13 +139,15 @@ const AlbumCard = ({ album: initialAlbum }: AlbumCardProps) => {
             <div className="truncate text-xs text-gray-300">
               {album.artistName}
             </div>
-            <div className="truncate text-xs text-gray-400">
-              {intl.formatDate(`${album.releaseDate}T00:00:00`, {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric',
-              })}
-            </div>
+            {dateOptions && (
+              <div className="truncate text-xs text-gray-400">
+                {intl.formatDate(
+                  // Pad partial dates; only the parts in dateOptions show.
+                  `${album.releaseDate.padEnd(10, '-01').slice(0, 10)}T00:00:00`,
+                  dateOptions
+                )}
+              </div>
+            )}
           </div>
           <div className="absolute left-0 right-0 top-0 flex items-center justify-between p-2">
             <div className="pointer-events-none z-40 self-start rounded-full border border-teal-500 bg-teal-600/80 shadow-md">
@@ -135,8 +158,15 @@ const AlbumCard = ({ album: initialAlbum }: AlbumCardProps) => {
               </div>
             </div>
             {status && (
-              <div className="pointer-events-none z-40 flex">
-                <StatusBadgeMini status={status} shrink />
+              <div className="flex flex-col items-end gap-1">
+                <div className="pointer-events-none z-40 flex">
+                  <StatusBadgeMini
+                    status={status}
+                    inProgress={!!initialAlbum.download}
+                    shrink
+                  />
+                </div>
+                <MusicEtaPill download={initialAlbum.download} />
               </div>
             )}
           </div>

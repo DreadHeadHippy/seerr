@@ -88,6 +88,16 @@ export interface LidarrAlbum {
   };
 }
 
+export interface LidarrQueueItem {
+  size: number;
+  sizeleft: number;
+  estimatedCompletionTime?: string;
+  status: string;
+  trackedDownloadState: string;
+  album?: { foreignAlbumId?: string };
+  artist?: { foreignArtistId?: string };
+}
+
 export interface MetadataProfile {
   id: number;
   name: string;
@@ -131,6 +141,9 @@ export interface LidarrArtist {
  * Which existing albums Lidarr should monitor when an artist is added.
  * Mirrors the "Monitor" dropdown in Lidarr's own Add Artist dialog.
  */
+/** Thrown by requestAlbum when the album's artist is blocklisted. */
+export const ARTIST_BLOCKLISTED = 'Artist is blocklisted';
+
 export const LIDARR_MONITOR_OPTIONS = [
   'all',
   'future',
@@ -374,6 +387,32 @@ class LidarrAPI extends ServarrBase<{ albumId: number }> {
    * undefined when it is not in Lidarr. Cached briefly for the new release
    * rows on the Music page.
    */
+  /**
+   * Everything downloading for Lidarr, with each item's album and artist.
+   * Cached briefly: every Music row asks for it.
+   */
+  public async getDownloadQueue(): Promise<LidarrQueueItem[]> {
+    const response = await this.get<{ records: LidarrQueueItem[] }>(
+      '/queue',
+      {
+        params: {
+          page: 1,
+          pageSize: 500,
+          includeAlbum: true,
+          includeArtist: true,
+        },
+      },
+      30
+    );
+
+    return response.records ?? [];
+  }
+
+  /** The albums Lidarr tracks for one library artist. */
+  public async getArtistAlbums(artistId: number): Promise<LidarrAlbum[]> {
+    return this.get<LidarrAlbum[]>('/album', { params: { artistId } }, 60);
+  }
+
   public async getLibraryAlbum(
     foreignAlbumId: string
   ): Promise<LidarrAlbum | undefined> {
@@ -398,6 +437,8 @@ class LidarrAPI extends ServarrBase<{ albumId: number }> {
     rootFolderPath: string;
     tags: number[];
     searchNow: boolean;
+    /** Refuses albums whose artist is not in Lidarr yet and is blocked. */
+    isArtistBlocked?: (foreignArtistId: string) => Promise<boolean>;
   }): Promise<LidarrAlbum> {
     const existing = await this.getLibraryAlbum(options.foreignAlbumId).catch(
       () => undefined
@@ -437,6 +478,15 @@ class LidarrAPI extends ServarrBase<{ albumId: number }> {
 
     if (!album?.artist) {
       throw new Error('Album not found in Lidarr metadata');
+    }
+
+    const foreignArtistId = album.artist.foreignArtistId;
+
+    if (
+      typeof foreignArtistId === 'string' &&
+      (await options.isArtistBlocked?.(foreignArtistId))
+    ) {
+      throw new Error(ARTIST_BLOCKLISTED);
     }
 
     const response = await this.axios.post<LidarrAlbum>('/album', {

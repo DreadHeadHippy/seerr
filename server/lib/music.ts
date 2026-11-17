@@ -3,6 +3,7 @@ import type LastfmAPI from '@server/api/lastfm';
 import type { LastfmArtist } from '@server/api/lastfm';
 import type ListenbrainzAPI from '@server/api/listenbrainz';
 import type { FreshRelease } from '@server/api/listenbrainz';
+import { getMusicBrainz } from '@server/api/musicbrainz';
 import type {
   LidarrAlbum,
   LidarrArtist,
@@ -11,6 +12,7 @@ import type {
 import LidarrAPI from '@server/api/servarr/lidarr';
 import type {
   MusicAlbumResult,
+  MusicArtistDetails,
   MusicArtistResult,
   MusicPersonalResponse,
 } from '@server/interfaces/api/musicInterfaces';
@@ -570,4 +572,83 @@ export const getNewThisWeek = async (
   }
 
   return [];
+};
+
+/**
+ * An artist's page: Lidarr's metadata (bio, genres, links, artwork) and the
+ * complete official discography from MusicBrainz, each release marked with
+ * its Lidarr status.
+ */
+export const getArtistDetails = async (
+  context: DiscoveryContext,
+  foreignArtistId: string
+): Promise<MusicArtistDetails> => {
+  const libraryArtist = context.library.get(foreignArtistId);
+  // Library artists carry statistics; the metadata lookup does not.
+  const artist =
+    libraryArtist ??
+    (await context.lidarr.getArtistByForeignArtistId(foreignArtistId));
+
+  const [groups, libraryAlbums] = await Promise.all([
+    getMusicBrainz()
+      .getReleaseGroups(foreignArtistId)
+      .catch((e) => {
+        logger.warn('Unable to load discography from MusicBrainz', {
+          label: 'Music Discovery',
+          foreignArtistId,
+          errorMessage: e.message,
+        });
+        return [];
+      }),
+    libraryArtist?.id
+      ? context.lidarr.getArtistAlbums(libraryArtist.id).catch(() => [])
+      : Promise.resolve([] as LidarrAlbum[]),
+  ]);
+
+  const tracked = new Map(
+    libraryAlbums.map((album) => [album.foreignAlbumId, album])
+  );
+  const lidarrBase = (
+    context.lidarrSettings.externalUrl ||
+    LidarrAPI.buildUrl(context.lidarrSettings)
+  ).replace(/\/$/, '');
+
+  const releases: MusicAlbumResult[] = groups
+    .map((group) => {
+      const libraryAlbum = tracked.get(group.id);
+
+      return {
+        foreignAlbumId: group.id,
+        title: group.title,
+        albumType: group['primary-type'] || 'Other',
+        secondaryTypes: group['secondary-types'] ?? [],
+        artistName: artist.artistName,
+        foreignArtistId,
+        releaseDate: group['first-release-date'] ?? '',
+        coverUrl: `https://coverartarchive.org/release-group/${group.id}/front-250`,
+        inLidarr: !!libraryAlbum?.monitored,
+        monitored: !!libraryAlbum?.monitored,
+        hasFiles: (libraryAlbum?.statistics?.trackFileCount ?? 0) > 0,
+        lidarrUrl:
+          context.showLidarrUrl && libraryAlbum
+            ? `${lidarrBase}/album/${group.id}`
+            : undefined,
+      };
+    })
+    // Newest first; releases without a date go last.
+    .sort((a, b) => (b.releaseDate || '0').localeCompare(a.releaseDate || '0'));
+
+  const [mapped] = await fillMissingArtwork([
+    mapArtist(artist, context.lidarrSettings, context.showLidarrUrl),
+  ]);
+
+  return {
+    artist: {
+      ...mapped,
+      links: (artist.links ?? [])
+        .filter((link) => link.url)
+        .map((link) => ({ name: link.name, url: link.url })),
+    },
+    releases,
+  };
 };

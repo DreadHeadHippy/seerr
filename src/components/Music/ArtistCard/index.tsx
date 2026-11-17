@@ -1,8 +1,10 @@
 import Button from '@app/components/Common/Button';
 import CachedImage from '@app/components/Common/CachedImage';
 import StatusBadgeMini from '@app/components/Common/StatusBadgeMini';
+import { MusicEtaPill } from '@app/components/Music/MusicEta';
 import { useMusicPreview } from '@app/components/Music/PreviewPlayer';
 import MusicRequestModal from '@app/components/RequestModal/MusicRequestModal';
+import useArtistBlocklist from '@app/hooks/useArtistBlocklist';
 import { useIsTouch } from '@app/hooks/useIsTouch';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
@@ -12,10 +14,13 @@ import {
   ArrowDownTrayIcon,
   ArrowPathIcon,
   ArrowTopRightOnSquareIcon,
+  EyeIcon,
+  EyeSlashIcon,
 } from '@heroicons/react/24/outline';
 import { PauseIcon, PlayIcon } from '@heroicons/react/24/solid';
 import { MediaStatus } from '@server/constants/media';
 import type { MusicArtistResult } from '@server/interfaces/api/musicInterfaces';
+import Link from 'next/link';
 import { Fragment, useState } from 'react';
 import { useIntl } from 'react-intl';
 
@@ -41,6 +46,13 @@ const ArtistCard = ({
   const isTouch = useIsTouch();
   const { hasPermission } = useUser();
   const [localArtist, setLocalArtist] = useState(initialArtist);
+  // Only admins are sent blocklisted artists (in search), or can block one.
+  const {
+    blocklisted,
+    isUpdating: isBlocklistUpdating,
+    toggle: toggleBlocklist,
+  } = useArtistBlocklist(initialArtist);
+  const isAdmin = hasPermission(Permission.ADMIN);
   const [showDetail, setShowDetail] = useState(false);
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
@@ -58,11 +70,13 @@ const ArtistCard = ({
     { type: 'or' }
   );
 
-  const status = artist.inLidarr
-    ? (artist.trackFileCount ?? 0) > 0
-      ? MediaStatus.AVAILABLE
-      : MediaStatus.PROCESSING
-    : undefined;
+  const status = blocklisted
+    ? MediaStatus.BLOCKLISTED
+    : artist.inLidarr
+      ? (artist.trackFileCount ?? 0) > 0
+        ? MediaStatus.AVAILABLE
+        : MediaStatus.PROCESSING
+      : undefined;
 
   const subtitle = [
     artist.disambiguation,
@@ -126,11 +140,50 @@ const ArtistCard = ({
                 {intl.formatMessage(messages.artist)}
               </div>
             </div>
+            {/* Same place and style as the movie and series cards. */}
+            {isAdmin && showDetail && !artist.inLidarr && (
+              <div className="flex flex-col gap-1">
+                <Button
+                  buttonType="ghost"
+                  buttonSize="sm"
+                  className={`z-40 ${
+                    isBlocklistUpdating ? 'pointer-events-none opacity-50' : ''
+                  }`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleBlocklist();
+                  }}
+                  title={intl.formatMessage(
+                    blocklisted
+                      ? globalMessages.removefromBlocklist
+                      : globalMessages.addToBlocklist
+                  )}
+                  aria-label={intl.formatMessage(
+                    blocklisted
+                      ? globalMessages.removefromBlocklist
+                      : globalMessages.addToBlocklist
+                  )}
+                >
+                  {blocklisted ? (
+                    <EyeIcon className="h-3" />
+                  ) : (
+                    <EyeSlashIcon className="h-3" />
+                  )}
+                </Button>
+              </div>
+            )}
             {status && (
-              <div className="flex flex-col items-center gap-1">
+              <div className="flex flex-col items-end gap-1">
                 <div className="pointer-events-none z-40 flex">
-                  <StatusBadgeMini status={status} shrink />
+                  <StatusBadgeMini
+                    status={status}
+                    inProgress={!blocklisted && !!initialArtist.download}
+                    shrink
+                  />
                 </div>
+                {!blocklisted && (
+                  <MusicEtaPill download={initialArtist.download} />
+                )}
               </div>
             )}
           </div>
@@ -146,8 +199,9 @@ const ArtistCard = ({
             leaveTo="opacity-0"
           >
             <div className="absolute inset-0 overflow-hidden rounded-xl">
-              <div
-                className="absolute inset-0 h-full w-full overflow-hidden text-left"
+              <Link
+                href={`/music/artist/${artist.foreignArtistId}`}
+                className="absolute inset-0 h-full w-full cursor-pointer overflow-hidden text-left"
                 style={{
                   background:
                     'linear-gradient(180deg, rgba(45, 55, 72, 0.4) 0%, rgba(45, 55, 72, 0.9) 100%)',
@@ -184,10 +238,10 @@ const ArtistCard = ({
                     </div>
                   </div>
                 </div>
-              </div>
+              </Link>
 
               <div className="absolute bottom-0 left-0 right-0 flex justify-between px-2 py-2">
-                {!artist.inLidarr && showRequestButton && (
+                {!artist.inLidarr && !blocklisted && showRequestButton && (
                   <Button
                     buttonType="primary"
                     buttonSize="sm"

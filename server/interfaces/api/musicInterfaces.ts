@@ -3,6 +3,14 @@ import type {
   LidarrMonitorOption,
 } from '@server/api/servarr/lidarr';
 
+/** Something downloading right now, without saying from where. */
+export interface MusicDownload {
+  /** 0 to 1. */
+  progress: number;
+  /** Approximate time it is playable in Plex; unknown while queued. */
+  readyAt?: string;
+}
+
 export interface MusicArtistResult {
   foreignArtistId: string;
   artistName: string;
@@ -17,6 +25,9 @@ export interface MusicArtistResult {
   albumCount?: number;
   trackFileCount?: number;
   lidarrUrl?: string;
+  /** Only set in admin search results; everyone else never sees these. */
+  blocklisted?: boolean;
+  download?: MusicDownload;
 }
 
 export interface MusicSearchResponse {
@@ -41,11 +52,14 @@ export interface MusicAlbumResult {
   artistName: string;
   foreignArtistId?: string;
   releaseDate: string;
+  /** MusicBrainz secondary types, e.g. Live, Compilation, Remix. */
+  secondaryTypes?: string[];
   coverUrl?: string;
   inLidarr: boolean;
   monitored: boolean;
   hasFiles: boolean;
   lidarrUrl?: string;
+  download?: MusicDownload;
 }
 
 export interface MusicAlbumsResponse {
@@ -79,4 +93,29 @@ export interface MusicPreviewTrack {
 
 export interface MusicPreviewResponse {
   tracks: MusicPreviewTrack[];
+}
+
+export interface MusicBlocklistItem {
+  id: number;
+  foreignArtistId: string;
+  artistName: string;
+  createdAt: string;
+  user?: { id: number; displayName: string; avatar?: string };
+}
+
+export interface MusicBlocklistResponse {
+  results: MusicBlocklistItem[];
+}
+
+export interface MusicBlocklistAddBody {
+  foreignArtistId: string;
+  artistName: string;
+}
+
+export interface MusicArtistDetails {
+  artist: MusicArtistResult & {
+    links: { name: string; url: string }[];
+  };
+  /** The artist's official releases, newest first. */
+  releases: MusicAlbumResult[];
 }

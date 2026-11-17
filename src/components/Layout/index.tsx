@@ -1,6 +1,7 @@
 import MobileMenu from '@app/components/Layout/MobileMenu';
 import PullToRefresh from '@app/components/Layout/PullToRefresh';
 import SearchInput from '@app/components/Layout/SearchInput';
+import MusicSearchInput from '@app/components/Layout/SearchInput/MusicSearchInput';
 import Sidebar from '@app/components/Layout/Sidebar';
 import UserDropdown from '@app/components/Layout/UserDropdown';
 import UserWarnings from '@app/components/Layout/UserWarnings';
@@ -116,7 +117,12 @@ const Layout = ({ children }: LayoutProps) => {
             >
               <ArrowLeftIcon className="w-7" />
             </button>
-            <SearchInput />
+            {/* On the Music page the top bar searches artists instead. */}
+            {router.pathname === '/music' && currentSettings.musicEnabled ? (
+              <MusicSearchInput />
+            ) : (
+              <SearchInput />
+            )}
             <div className="flex items-center">
               <UserDropdown />
             </div>

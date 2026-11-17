@@ -5,26 +5,23 @@ import PageTitle from '@app/components/Common/PageTitle';
 import ArtistCard from '@app/components/Music/ArtistCard';
 import MusicSlider from '@app/components/Music/MusicSlider';
 import { MusicPreviewProvider } from '@app/components/Music/PreviewPlayer';
-import useDebouncedState from '@app/hooks/useDebouncedState';
 import { encodeURIExtraParams } from '@app/hooks/useDiscover';
 import useSettings from '@app/hooks/useSettings';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import ErrorPage from '@app/pages/_error';
 import defineMessages from '@app/utils/defineMessages';
-import { MagnifyingGlassIcon } from '@heroicons/react/24/solid';
 import type {
   MusicPersonalResponse,
   MusicSearchResponse,
 } from '@server/interfaces/api/musicInterfaces';
 import { useRouter } from 'next/router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useIntl } from 'react-intl';
 import useSWR from 'swr';
 
 const messages = defineMessages('components.Music', {
   music: 'Music',
-  searchPlaceholder: 'Search Artists',
   searchresults: 'Search Results',
   notConfigured:
     'No Lidarr server is configured. An administrator can add one under Settings → Services.',
@@ -89,33 +86,10 @@ const Music = () => {
   const { currentSettings } = useSettings();
   const { hasPermission } = useUser();
   const [genre, setGenre] = useState(GENRES[0].tag);
-  const initialQuery =
-    typeof router.query.query === 'string' ? router.query.query : '';
-  const [searchValue, debouncedValue, setSearchValue] =
-    useDebouncedState(initialQuery);
+  // The top bar search (MusicSearchInput) keeps the artist search in the URL.
+  const query =
+    typeof router.query.query === 'string' ? router.query.query.trim() : '';
 
-  useEffect(() => {
-    if (router.isReady && initialQuery && !searchValue) {
-      setSearchValue(initialQuery);
-    }
-    // Only sync once the router has the query from the URL.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router.isReady]);
-
-  useEffect(() => {
-    const query = debouncedValue.trim();
-
-    if ((router.query.query ?? '') !== query) {
-      router.replace(
-        { pathname: router.pathname, query: query ? { query } : {} },
-        undefined,
-        { shallow: true }
-      );
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedValue]);
-
-  const query = debouncedValue.trim();
   const { data, error, isLoading } = useSWR<MusicSearchResponse>(
     currentSettings.musicEnabled && query
       ? `/api/v1/music/search?query=${encodeURIExtraParams(query)}`
@@ -193,22 +167,6 @@ const Music = () => {
         </div>
       ) : (
         <>
-          <div className="mb-6 flex w-full max-w-xl">
-            <div className="relative w-full text-white focus-within:text-gray-200">
-              <div className="pointer-events-none absolute inset-y-0 left-4 flex items-center">
-                <MagnifyingGlassIcon className="h-5 w-5" />
-              </div>
-              <input
-                id="music_search_field"
-                className="block w-full rounded-full border border-gray-600 bg-gray-900/80 py-2 pl-11 text-white placeholder-gray-300 hover:border-gray-500 focus:border-gray-500 focus:bg-gray-900 focus:placeholder-gray-400 focus:outline-none focus:ring-0 sm:text-base"
-                placeholder={intl.formatMessage(messages.searchPlaceholder)}
-                type="search"
-                autoComplete="off"
-                value={searchValue}
-                onChange={(e) => setSearchValue(e.target.value)}
-              />
-            </div>
-          </div>
           {query ? (
             <>
               {isLoading && <LoadingSpinner />}

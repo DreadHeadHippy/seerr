@@ -2,14 +2,20 @@ import { getDeezer } from '@server/api/deezer';
 import LastfmAPI from '@server/api/lastfm';
 import ListenbrainzAPI from '@server/api/listenbrainz';
 import LidarrAPI, {
+  ARTIST_BLOCKLISTED,
   LIDARR_MONITOR_NEW_ITEMS_OPTIONS,
   LIDARR_MONITOR_OPTIONS,
 } from '@server/api/servarr/lidarr';
+import dataSource from '@server/datasource';
+import { MusicBlocklist } from '@server/entity/MusicBlocklist';
 import type {
   MusicAlbumAddBody,
   MusicAlbumResult,
   MusicArtistAddBody,
+  MusicArtistDetails,
   MusicArtistResult,
+  MusicBlocklistAddBody,
+  MusicBlocklistResponse,
   MusicPersonalResponse,
   MusicPreviewResponse,
   MusicSearchResponse,
@@ -20,6 +26,7 @@ import {
   createDiscoveryContext,
   createLidarrClient,
   fillMissingArtwork,
+  getArtistDetails,
   getDefaultLidarr,
   getLibraryGenres,
   getNewFromLibraryArtists,
@@ -31,10 +38,17 @@ import {
   mapArtist,
   resolveLastfmArtists,
 } from '@server/lib/music';
+import {
+  getBlocklistedArtistIds,
+  isArtistBlocklisted,
+  removeBlocklisted,
+} from '@server/lib/musicBlocklist';
+import { attachDownloads, getMusicDownloads } from '@server/lib/musicDownloads';
 import { Permission } from '@server/lib/permissions';
 import type { LidarrSettings } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
+import { isAuthenticated } from '@server/middleware/auth';
 import { sanitizeDisplayName } from '@server/subscriber/MediaRequestSubscriber';
 import type { NextFunction, Request, Response } from 'express';
 import { Router } from 'express';
@@ -75,15 +89,16 @@ const discoverHandler =
         !!req.user?.hasPermission(Permission.MANAGE_REQUESTS)
       );
 
+      const [result, blocked, downloads] = await Promise.all([
+        source(context, lastfmKey ? new LastfmAPI(lastfmKey) : undefined, req),
+        getBlocklistedArtistIds(),
+        getMusicDownloads(context.lidarr),
+      ]);
+
+      // Blocklisted artists are hidden from every row, for everyone.
       return res
         .status(200)
-        .json(
-          await source(
-            context,
-            lastfmKey ? new LastfmAPI(lastfmKey) : undefined,
-            req
-          )
-        );
+        .json(attachDownloads(removeBlocklisted(result, blocked), downloads));
     } catch (e) {
       logger.error('Failed to load music discovery results', {
         label: 'Music Discovery',
@@ -254,18 +269,35 @@ musicRoutes.get<never, MusicSearchResponse, never, { query?: string }>(
     const lidarr = createLidarrClient(lidarrSettings);
 
     try {
-      const artists = await lidarr.searchArtists(query);
+      const [artists, blocked, downloads] = await Promise.all([
+        lidarr.searchArtists(query),
+        getBlocklistedArtistIds(),
+        getMusicDownloads(lidarr),
+      ]);
       const showLidarrUrl = !!req.user?.hasPermission(
         Permission.MANAGE_REQUESTS
       );
+      // Admins still find blocklisted artists, marked, so they can unblock
+      // them; everyone else never sees them.
+      const isAdmin = !!req.user?.hasPermission(Permission.ADMIN);
+      const results = artists
+        .map((artist) => mapArtist(artist, lidarrSettings, showLidarrUrl))
+        .flatMap((artist) =>
+          !blocked.has(artist.foreignArtistId)
+            ? [artist]
+            : isAdmin
+              ? [{ ...artist, blocklisted: true }]
+              : []
+        );
 
-      return res.status(200).json({
-        results: await fillMissingArtwork(
-          artists.map((artist) =>
-            mapArtist(artist, lidarrSettings, showLidarrUrl)
+      return res
+        .status(200)
+        .json(
+          attachDownloads(
+            { results: await fillMissingArtwork(results) },
+            downloads
           )
-        ),
-      });
+        );
     } catch (e) {
       logger.error('Failed to search Lidarr for artists', {
         label: 'API',
@@ -386,6 +418,63 @@ const prepareLidarrRequest = async (
   };
 };
 
+/** An artist's page: bio, links and full discography. */
+musicRoutes.get<{ foreignArtistId: string }, MusicArtistDetails>(
+  '/artist/:foreignArtistId',
+  async (req, res, next) => {
+    const { foreignArtistId } = req.params;
+    const lidarrSettings = getDefaultLidarr();
+
+    if (!lidarrSettings) {
+      return next({ status: 404, message: 'No Lidarr server is configured.' });
+    }
+
+    try {
+      const blocklisted = await isArtistBlocklisted(foreignArtistId);
+      const isAdmin = !!req.user?.hasPermission(Permission.ADMIN);
+
+      // Only admins can see a blocklisted artist (to unblock it).
+      if (blocklisted && !isAdmin) {
+        return next({ status: 404, message: 'Artist not found.' });
+      }
+
+      const context = await createDiscoveryContext(
+        lidarrSettings,
+        !!req.user?.hasPermission(Permission.MANAGE_REQUESTS)
+      );
+      const [details, downloads] = await Promise.all([
+        getArtistDetails(context, foreignArtistId),
+        getMusicDownloads(context.lidarr),
+      ]);
+
+      return res.status(200).json(
+        attachDownloads(
+          {
+            ...details,
+            artist: {
+              ...details.artist,
+              blocklisted: blocklisted || undefined,
+            },
+          },
+          downloads
+        )
+      );
+    } catch (e) {
+      if (e.message === 'Artist not found') {
+        return next({ status: 404, message: 'Artist not found.' });
+      }
+
+      logger.error('Failed to load artist details', {
+        label: 'Music Discovery',
+        foreignArtistId,
+        errorMessage: e.message,
+      });
+
+      return next({ status: 500, message: 'Unable to load artist.' });
+    }
+  }
+);
+
 musicRoutes.post<never, MusicArtistResult, MusicArtistAddBody>(
   '/artist',
   async (req, res, next) => {
@@ -407,6 +496,10 @@ musicRoutes.post<never, MusicArtistResult, MusicArtistAddBody>(
     }
 
     try {
+      if (await isArtistBlocklisted(foreignArtistId)) {
+        return next({ status: 403, message: 'This artist is blocklisted.' });
+      }
+
       const prepared = await prepareLidarrRequest(req, req.body);
 
       if ('error' in prepared) {
@@ -470,7 +563,11 @@ musicRoutes.post<never, Partial<MusicAlbumResult>, MusicAlbumAddBody>(
       }
 
       const { lidarr, lidarrSettings, ...options } = prepared;
-      const album = await lidarr.requestAlbum({ ...options, foreignAlbumId });
+      const album = await lidarr.requestAlbum({
+        ...options,
+        foreignAlbumId,
+        isArtistBlocked: isArtistBlocklisted,
+      });
       const lidarrUrl = req.user?.hasPermission(Permission.MANAGE_REQUESTS)
         ? `${(
             lidarrSettings.externalUrl || LidarrAPI.buildUrl(lidarrSettings)
@@ -499,12 +596,133 @@ musicRoutes.post<never, Partial<MusicAlbumResult>, MusicAlbumAddBody>(
         foreignAlbumId,
       });
 
+      if (e.message === ARTIST_BLOCKLISTED) {
+        return next({ status: 403, message: 'This artist is blocklisted.' });
+      }
+
       return next({
         status: 500,
         message:
           e.message === 'Album not found in Lidarr metadata'
             ? "Lidarr doesn't know this release yet. Try again in a day or two."
             : 'Unable to request album in Lidarr.',
+      });
+    }
+  }
+);
+
+/** Blocklisted artists. Managing the music blocklist is admin only. */
+musicRoutes.get<never, MusicBlocklistResponse>(
+  '/blocklist',
+  isAuthenticated(Permission.ADMIN),
+  async (_req, res, next) => {
+    try {
+      const rows = await dataSource
+        .getRepository(MusicBlocklist)
+        .find({ order: { createdAt: 'DESC' } });
+
+      return res.status(200).json({
+        results: rows.map((row) => ({
+          id: row.id,
+          foreignArtistId: row.foreignArtistId,
+          artistName: row.artistName,
+          createdAt: new Date(row.createdAt).toISOString(),
+          user: row.user
+            ? {
+                id: row.user.id,
+                displayName: row.user.displayName,
+                avatar: row.user.avatar,
+              }
+            : undefined,
+        })),
+      });
+    } catch (e) {
+      logger.error('Failed to load the music blocklist', {
+        label: 'API',
+        errorMessage: e.message,
+      });
+
+      return next({ status: 500, message: 'Unable to load the blocklist.' });
+    }
+  }
+);
+
+musicRoutes.post<never, unknown, MusicBlocklistAddBody>(
+  '/blocklist',
+  isAuthenticated(Permission.ADMIN),
+  async (req, res, next) => {
+    const { foreignArtistId, artistName } = req.body;
+
+    if (!foreignArtistId || !artistName) {
+      return next({
+        status: 400,
+        message: 'foreignArtistId and artistName are required.',
+      });
+    }
+
+    try {
+      if (await isArtistBlocklisted(foreignArtistId)) {
+        return next({ status: 412, message: 'Artist is already blocklisted.' });
+      }
+
+      await dataSource.getRepository(MusicBlocklist).save(
+        new MusicBlocklist({
+          foreignArtistId,
+          artistName,
+          user: req.user,
+        })
+      );
+
+      logger.info('Artist added to the music blocklist', {
+        label: 'API',
+        userId: req.user?.id,
+        artistName,
+        foreignArtistId,
+      });
+
+      return res.status(201).send();
+    } catch (e) {
+      logger.error('Failed to blocklist artist', {
+        label: 'API',
+        errorMessage: e.message,
+        foreignArtistId,
+      });
+
+      return next({ status: 500, message: 'Unable to blocklist artist.' });
+    }
+  }
+);
+
+musicRoutes.delete<{ foreignArtistId: string }>(
+  '/blocklist/:foreignArtistId',
+  isAuthenticated(Permission.ADMIN),
+  async (req, res, next) => {
+    try {
+      const result = await dataSource
+        .getRepository(MusicBlocklist)
+        .delete({ foreignArtistId: req.params.foreignArtistId });
+
+      if (!result.affected) {
+        return next({ status: 404, message: 'Artist is not blocklisted.' });
+      }
+
+      logger.info('Artist removed from the music blocklist', {
+        label: 'API',
+        userId: req.user?.id,
+        foreignArtistId: req.params.foreignArtistId,
+      });
+
+      return res.status(204).send();
+    } catch (e) {
+      logger.error('Failed to remove artist from the blocklist', {
+        label: 'API',
+        errorMessage: e.message,
+        foreignArtistId: req.params.foreignArtistId,
+      });
+
+      return next({
+        status: 500,
+        message: 'Unable to remove artist from the blocklist.',
       });
     }
   }

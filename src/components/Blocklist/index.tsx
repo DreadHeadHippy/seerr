@@ -6,6 +6,7 @@ import ConfirmButton from '@app/components/Common/ConfirmButton';
 import Header from '@app/components/Common/Header';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import PageTitle from '@app/components/Common/PageTitle';
+import MusicBlocklist from '@app/components/Music/MusicBlocklist';
 import useDebouncedState from '@app/hooks/useDebouncedState';
 import useToasts from '@app/hooks/useToasts';
 import { useUpdateQueryParams } from '@app/hooks/useUpdateQueryParams';
@@ -47,12 +48,15 @@ const messages = defineMessages('components.Blocklist', {
   filterManual: 'Manual',
   filterBlocklistedTags: 'Blocklisted Tags',
   showAllBlocklisted: 'Show All Blocklisted Media',
+  filterMusic: 'Music',
 });
 
 enum Filter {
   ALL = 'all',
   MANUAL = 'manual',
   BLOCKLISTEDTAGS = 'blocklistedTags',
+  // Blocklisted artists, a separate admin only list.
+  MUSIC = 'music',
 }
 
 const isMovie = (movie: MovieDetails | TvDetails): movie is MovieDetails => {
@@ -66,6 +70,8 @@ const Blocklist = () => {
   const [currentFilter, setCurrentFilter] = useState<Filter>(Filter.MANUAL);
   const router = useRouter();
   const intl = useIntl();
+  const { hasPermission } = useUser();
+  const isMusic = currentFilter === Filter.MUSIC;
 
   const page = router.query.page ? Number(router.query.page) : 1;
   const pageIndex = page - 1;
@@ -76,11 +82,13 @@ const Blocklist = () => {
     error,
     mutate: revalidate,
   } = useSWR<BlocklistResultsResponse>(
-    `/api/v1/blocklist/?take=${currentPageSize}&skip=${
-      pageIndex * currentPageSize
-    }&filter=${currentFilter}${
-      debouncedSearchFilter ? `&search=${debouncedSearchFilter}` : ''
-    }`,
+    isMusic
+      ? null
+      : `/api/v1/blocklist/?take=${currentPageSize}&skip=${
+          pageIndex * currentPageSize
+        }&filter=${currentFilter}${
+          debouncedSearchFilter ? `&search=${debouncedSearchFilter}` : ''
+        }`,
     {
       refreshInterval: 0,
       revalidateOnFocus: false,
@@ -140,6 +148,11 @@ const Blocklist = () => {
               <option value="blocklistedTags">
                 {intl.formatMessage(messages.filterBlocklistedTags)}
               </option>
+              {hasPermission(Permission.ADMIN) && (
+                <option value="music">
+                  {intl.formatMessage(messages.filterMusic)}
+                </option>
+              )}
             </select>
           </div>
 
@@ -157,7 +170,9 @@ const Blocklist = () => {
         </div>
       </div>
 
-      {!data ? (
+      {isMusic ? (
+        <MusicBlocklist search={debouncedSearchFilter} />
+      ) : !data ? (
         <LoadingSpinner />
       ) : data.results.length === 0 ? (
         <div className="flex w-full flex-col items-center justify-center py-24 text-white">
@@ -188,7 +203,7 @@ const Blocklist = () => {
         })
       )}
 
-      <div className="actions">
+      <div className={`actions ${isMusic ? 'hidden' : ''}`}>
         <nav
           className="mb-3 flex flex-col items-center space-y-3 sm:flex-row sm:space-y-0"
           aria-label="Pagination"

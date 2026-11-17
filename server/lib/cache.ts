@@ -14,7 +14,8 @@ export type AvailableCacheIds =
   | 'lidarr'
   | 'lastfm'
   | 'deezer'
-  | 'listenbrainz';
+  | 'listenbrainz'
+  | 'musicbrainz';
 
 const DEFAULT_TTL = 300;
 
@@ -41,6 +42,7 @@ const LASTFM_MAX_KEYS = 500;
 
 // One key per artist name that needed a fallback photo.
 const DEEZER_MAX_KEYS = 2000;
+const MUSICBRAINZ_MAX_KEYS = 1000;
 
 // The fresh releases feed is a single large key.
 const LISTENBRAINZ_MAX_KEYS = 8;
@@ -251,6 +253,10 @@ class CacheManager {
     deezer: new Cache('deezer', 'Deezer API', {
       stdTtl: 604800,
       max: DEEZER_MAX_KEYS,
+    }),
+    musicbrainz: new Cache('musicbrainz', 'MusicBrainz API', {
+      stdTtl: 86400,
+      max: MUSICBRAINZ_MAX_KEYS,
     }),
     listenbrainz: new Cache('listenbrainz', 'ListenBrainz API', {
       stdTtl: 21600,

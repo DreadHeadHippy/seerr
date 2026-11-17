@@ -8154,6 +8154,115 @@ paths:
                           type: string
                         previewUrl:
                           type: string
+  /music/artist/{foreignArtistId}:
+    get:
+      summary: Artist details
+      description: Returns the artist's bio, links and full official discography (from MusicBrainz), each release marked with its Lidarr status. Blocklisted artists are only returned to admins.
+      tags:
+        - music
+      parameters:
+        - in: path
+          name: foreignArtistId
+          required: true
+          schema:
+            type: string
+            example: 'a74b1b7f-71a5-4011-9441-d0b5e4122711'
+      responses:
+        '200':
+          description: Artist details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  artist:
+                    type: object
+                  releases:
+                    type: array
+                    items:
+                      type: object
+        '404':
+          description: Artist not found
+  /music/blocklist:
+    get:
+      summary: Blocklisted artists
+      description: Returns every blocklisted artist. Blocklisted artists are hidden from music discovery and search and cannot be requested. Requires the `ADMIN` permission.
+      tags:
+        - music
+      responses:
+        '200':
+          description: Blocklisted artists
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: number
+                        foreignArtistId:
+                          type: string
+                        artistName:
+                          type: string
+                        createdAt:
+                          type: string
+                        user:
+                          type: object
+                          properties:
+                            id:
+                              type: number
+                            displayName:
+                              type: string
+                            avatar:
+                              type: string
+    post:
+      summary: Blocklist an artist
+      description: Hides the artist from music discovery and search and refuses requests for it. Requires the `ADMIN` permission.
+      tags:
+        - music
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                foreignArtistId:
+                  type: string
+                  example: 'b49b81cc-d5b7-4bdd-aadb-385df8de69a6'
+                artistName:
+                  type: string
+                  example: 'Drake'
+              required:
+                - foreignArtistId
+                - artistName
+      responses:
+        '201':
+          description: Artist blocklisted
+        '412':
+          description: Artist is already blocklisted
+  /music/blocklist/{foreignArtistId}:
+    delete:
+      summary: Remove an artist from the blocklist
+      description: Requires the `ADMIN` permission.
+      tags:
+        - music
+      parameters:
+        - in: path
+          name: foreignArtistId
+          required: true
+          schema:
+            type: string
+            example: 'b49b81cc-d5b7-4bdd-aadb-385df8de69a6'
+      responses:
+        '204':
+          description: Artist removed from the blocklist
+        '404':
+          description: Artist is not blocklisted
   /music/artist:
     post:
       summary: Add an artist to Lidarr
