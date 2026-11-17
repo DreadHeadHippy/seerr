@@ -1,8 +1,13 @@
+import MusicRequestModal from '@app/components/RequestModal/MusicRequestModal';
 import { encodeURIExtraParams } from '@app/hooks/useDiscover';
 import { useToasts } from '@app/hooks/useToasts';
+import { Permission, useUser } from '@app/hooks/useUser';
+import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
+import { ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 import {
   BackwardIcon,
+  CheckCircleIcon,
   ForwardIcon,
   PauseIcon,
   PlayIcon,
@@ -11,6 +16,7 @@ import {
   XMarkIcon,
 } from '@heroicons/react/24/solid';
 import type {
+  MusicArtistResult,
   MusicPreviewResponse,
   MusicPreviewTrack,
 } from '@server/interfaces/api/musicInterfaces';
@@ -38,6 +44,8 @@ const messages = defineMessages('components.Music.PreviewPlayer', {
   volume: 'Volume',
   mute: 'Mute',
   unmute: 'Unmute',
+  requestArtist: 'Request {artist}',
+  inLidarr: '{artist} is in Lidarr',
 });
 
 const VOLUME_KEY = 'music-preview-volume';
@@ -66,7 +74,7 @@ const SILENCE =
   'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
 
 interface PreviewQueue {
-  artistName: string;
+  artist: MusicArtistResult;
   tracks: MusicPreviewTrack[];
 }
 
@@ -77,7 +85,13 @@ interface MusicPreviewContextValue {
   loadingArtist?: string;
   isPlaying: boolean;
   /** Plays the artist's top songs, or pauses/resumes if they are loaded. */
-  playArtist: (artistName: string) => void;
+  playArtist: (artist: MusicArtistResult) => void;
+  /**
+   * Artists added to Lidarr on this page, by foreignArtistId, so the player
+   * and every card showing the artist agree after a request from either.
+   */
+  addedArtists: Record<string, MusicArtistResult>;
+  markAdded: (artist: MusicArtistResult) => void;
 }
 
 const MusicPreviewContext = createContext<MusicPreviewContextValue | undefined>(
@@ -98,6 +112,7 @@ export const MusicPreviewProvider = ({
 }) => {
   const intl = useIntl();
   const { addToast } = useToasts();
+  const { hasPermission } = useUser();
   const audioRef = useRef<HTMLAudioElement>(null);
   const requestRef = useRef(0);
   const [queue, setQueue] = useState<PreviewQueue>();
@@ -107,6 +122,22 @@ export const MusicPreviewProvider = ({
   const [progress, setProgress] = useState(0);
   const [volume, setVolume] = useState(0.8);
   const [isMuted, setIsMuted] = useState(false);
+  const [addedArtists, setAddedArtists] = useState<
+    Record<string, MusicArtistResult>
+  >({});
+  const [showRequestModal, setShowRequestModal] = useState(false);
+
+  const markAdded = useCallback((artist: MusicArtistResult) => {
+    setAddedArtists((current) => ({
+      ...current,
+      [artist.foreignArtistId]: artist,
+    }));
+  }, []);
+
+  const canRequest = hasPermission(
+    [Permission.REQUEST, Permission.REQUEST_MUSIC],
+    { type: 'or' }
+  );
 
   // Read after mount so server and client render the same markup.
   useEffect(() => {
@@ -168,8 +199,10 @@ export const MusicPreviewProvider = ({
   }, [index, queue]);
 
   const playArtist = useCallback(
-    async (artistName: string) => {
-      if (queue?.artistName === artistName) {
+    async (artist: MusicArtistResult) => {
+      const { artistName } = artist;
+
+      if (queue?.artist.artistName === artistName) {
         togglePlayback();
         return;
       }
@@ -206,7 +239,7 @@ export const MusicPreviewProvider = ({
           return;
         }
 
-        setQueue({ artistName, tracks: response.data.tracks });
+        setQueue({ artist, tracks: response.data.tracks });
         setIndex(0);
       } catch {
         if (requestId === requestRef.current) {
@@ -279,13 +312,27 @@ export const MusicPreviewProvider = ({
 
   const value = useMemo<MusicPreviewContextValue>(
     () => ({
-      artistName: queue?.artistName,
+      artistName: queue?.artist.artistName,
       loadingArtist,
       isPlaying,
       playArtist,
+      addedArtists,
+      markAdded,
     }),
-    [queue?.artistName, loadingArtist, isPlaying, playArtist]
+    [
+      queue?.artist.artistName,
+      loadingArtist,
+      isPlaying,
+      playArtist,
+      addedArtists,
+      markAdded,
+    ]
   );
+
+  // The playing artist as it is now, if it was added since playback began.
+  const artist = queue
+    ? (addedArtists[queue.artist.foreignArtistId] ?? queue.artist)
+    : undefined;
 
   return (
     <MusicPreviewContext.Provider value={value}>
@@ -309,7 +356,18 @@ export const MusicPreviewProvider = ({
           }
         }}
       />
-      {queue && track && (
+      {artist && (
+        <MusicRequestModal
+          show={showRequestModal}
+          artist={artist}
+          onComplete={(added) => {
+            markAdded({ ...artist, ...added, inLidarr: true });
+            setShowRequestModal(false);
+          }}
+          onCancel={() => setShowRequestModal(false)}
+        />
+      )}
+      {queue && artist && track && (
         <div className="pointer-events-none fixed inset-x-0 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-40 flex justify-center px-4 sm:bottom-4 lg:pl-[17rem]">
           <div className="pointer-events-auto relative w-full max-w-xl overflow-hidden rounded-xl border border-gray-700 bg-gray-800/95 shadow-xl backdrop-blur">
             <div className="absolute inset-x-0 top-0 h-0.5 bg-gray-700">
@@ -334,7 +392,7 @@ export const MusicPreviewProvider = ({
                   {track.title}
                 </div>
                 <div className="truncate text-xs text-gray-400">
-                  {queue.artistName}
+                  {artist.artistName}
                   {track.albumTitle ? ` · ${track.albumTitle}` : ''}
                 </div>
                 <div className="text-xs text-gray-500">
@@ -345,6 +403,38 @@ export const MusicPreviewProvider = ({
                 </div>
               </div>
               <div className="flex flex-shrink-0 items-center gap-1 text-gray-300">
+                {!artist.inLidarr && canRequest && (
+                  <button
+                    type="button"
+                    className="mr-1 flex items-center gap-1 rounded-full bg-indigo-600 p-1.5 text-sm font-medium text-white transition hover:bg-indigo-500 sm:px-3"
+                    onClick={() => setShowRequestModal(true)}
+                    aria-label={intl.formatMessage(messages.requestArtist, {
+                      artist: artist.artistName,
+                    })}
+                    title={intl.formatMessage(messages.requestArtist, {
+                      artist: artist.artistName,
+                    })}
+                  >
+                    <ArrowDownTrayIcon className="h-5 w-5 sm:h-4 sm:w-4" />
+                    <span className="hidden sm:inline">
+                      {intl.formatMessage(globalMessages.request)}
+                    </span>
+                  </button>
+                )}
+                {artist.inLidarr && (
+                  <span
+                    className="mr-1 p-1.5 text-green-400"
+                    role="img"
+                    aria-label={intl.formatMessage(messages.inLidarr, {
+                      artist: artist.artistName,
+                    })}
+                    title={intl.formatMessage(messages.inLidarr, {
+                      artist: artist.artistName,
+                    })}
+                  >
+                    <CheckCircleIcon className="h-5 w-5" />
+                  </span>
+                )}
                 <button
                   type="button"
                   className="rounded-full p-1.5 transition hover:bg-gray-700 hover:text-white"

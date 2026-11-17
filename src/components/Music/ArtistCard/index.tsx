@@ -40,12 +40,15 @@ const ArtistCard = ({
   const intl = useIntl();
   const isTouch = useIsTouch();
   const { hasPermission } = useUser();
-  const [artist, setArtist] = useState(initialArtist);
+  const [localArtist, setLocalArtist] = useState(initialArtist);
   const [showDetail, setShowDetail] = useState(false);
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
-  const posterUrl = imageFailed ? undefined : artist.posterUrl;
   const preview = useMusicPreview();
+  // Requested from the player, or from another card for the same artist.
+  const artist =
+    preview?.addedArtists[localArtist.foreignArtistId] ?? localArtist;
+  const posterUrl = imageFailed ? undefined : artist.posterUrl;
   const isPreviewArtist = preview?.artistName === artist.artistName;
   const isPreviewPlaying = isPreviewArtist && preview?.isPlaying;
   const isPreviewLoading = preview?.loadingArtist === artist.artistName;
@@ -76,7 +79,9 @@ const ArtistCard = ({
         show={showRequestModal}
         artist={artist}
         onComplete={(added) => {
-          setArtist({ ...artist, ...added, inLidarr: true });
+          const updated = { ...artist, ...added, inLidarr: true };
+          setLocalArtist(updated);
+          preview?.markAdded(updated);
           setShowRequestModal(false);
         }}
         onCancel={() => setShowRequestModal(false)}
@@ -247,7 +252,7 @@ const ArtistCard = ({
                 }`}
                 onClick={(e) => {
                   e.stopPropagation();
-                  preview.playArtist(artist.artistName);
+                  preview.playArtist(artist);
                 }}
                 onKeyDown={(e) => e.stopPropagation()}
                 aria-label={intl.formatMessage(
