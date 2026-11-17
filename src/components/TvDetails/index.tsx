@@ -8,6 +8,7 @@ import BlocklistModal from '@app/components/BlocklistModal';
 import Badge from '@app/components/Common/Badge';
 import Button from '@app/components/Common/Button';
 import CachedImage from '@app/components/Common/CachedImage';
+import DownloadRing from '@app/components/Common/DownloadRing';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import PageTitle from '@app/components/Common/PageTitle';
 import type { PlayButtonLink } from '@app/components/Common/PlayButton';
@@ -27,6 +28,7 @@ import Slider from '@app/components/Slider';
 import StatusBadge from '@app/components/StatusBadge';
 import Season from '@app/components/TvDetails/Season';
 import useDeepLinks from '@app/hooks/useDeepLinks';
+import { useLiveTorrents } from '@app/hooks/useLiveTorrents';
 import useLocale from '@app/hooks/useLocale';
 import useSettings from '@app/hooks/useSettings';
 import useToasts from '@app/hooks/useToasts';
@@ -35,7 +37,13 @@ import globalMessages from '@app/i18n/globalMessages';
 import ErrorPage from '@app/pages/_error';
 import { sortCrewPriority } from '@app/utils/creditHelpers';
 import defineMessages from '@app/utils/defineMessages';
+import { downloadEtaMessages, formatDownloadEta } from '@app/utils/downloadEta';
 import { mediaRefreshInterval } from '@app/utils/refreshIntervalHelper';
+import {
+  seasonProgress,
+  withLiveTorrents,
+  type SeasonProgress,
+} from '@app/utils/seasonProgress';
 import {
   Disclosure,
   DisclosureButton,
@@ -157,6 +165,29 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
     `/api/v1/tv/${router.query.tvId}/ratings`
   );
 
+  // Per-season download progress, live from qBittorrent.
+  const tvDownloads = data?.mediaInfo?.downloadStatus ?? [];
+  const liveTorrents = useLiveTorrents(tvDownloads.length > 0);
+  /** Seasons a download was seen for: gone from the queue means importing. */
+  const [seenSeasons, setSeenSeasons] = useState<Set<number>>(() => new Set());
+  const downloadingSeasons = [
+    ...new Set(
+      tvDownloads.flatMap((d) => (d.episode ? [d.episode.seasonNumber] : []))
+    ),
+  ]
+    .sort((a, b) => a - b)
+    .join(',');
+
+  useEffect(() => {
+    if (downloadingSeasons) {
+      setSeenSeasons((seen) => {
+        const next = new Set(seen);
+        downloadingSeasons.split(',').forEach((n) => next.add(Number(n)));
+        return next.size === seen.size ? seen : next;
+      });
+    }
+  }, [downloadingSeasons]);
+
   const sortedCrew = useMemo(
     () => sortCrewPriority(data?.credits.crew ?? []),
     [data]
@@ -195,6 +226,21 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
   if (!data) {
     return <ErrorPage statusCode={404} />;
   }
+
+  const seasonDownloads = new Map<number, SeasonProgress>(
+    seasonProgress(
+      data.seasons.map((season) => season.seasonNumber),
+      data.mediaInfo?.seasons ?? [],
+      withLiveTorrents(tvDownloads, liveTorrents),
+      seenSeasons,
+      Date.now()
+    )
+      .filter(
+        (season) =>
+          season.phase === 'downloading' || season.phase === 'importing'
+      )
+      .map((season) => [season.seasonNumber, season])
+  );
 
   const mediaLinks: PlayButtonLink[] = [];
 
@@ -909,6 +955,41 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
                               })}
                             </Badge>
                           </div>
+                          {(() => {
+                            const download = seasonDownloads.get(
+                              season.seasonNumber
+                            );
+
+                            if (!download) {
+                              return null;
+                            }
+
+                            const importing = download.phase === 'importing';
+                            const eta = formatDownloadEta(intl, download.etaMs);
+
+                            return (
+                              <div className="flex items-center gap-2 whitespace-nowrap text-sm font-medium text-indigo-300">
+                                <DownloadRing
+                                  size="sm"
+                                  progress={download.progress}
+                                  importing={importing}
+                                />
+                                <span>
+                                  {importing
+                                    ? intl.formatMessage(
+                                        downloadEtaMessages.importing
+                                      )
+                                    : `${Math.floor(download.progress * 100)}%`}
+                                  {!importing && eta && (
+                                    <span className="hidden sm:inline">
+                                      {' · '}
+                                      {eta}
+                                    </span>
+                                  )}
+                                </span>
+                              </div>
+                            );
+                          })()}
                           {((!mSeason &&
                             request?.status === MediaRequestStatus.APPROVED) ||
                             mSeason?.status === MediaStatus.PROCESSING ||

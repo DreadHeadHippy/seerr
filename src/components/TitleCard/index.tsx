@@ -9,12 +9,21 @@ import RequestModal from '@app/components/RequestModal';
 import ErrorCard from '@app/components/TitleCard/ErrorCard';
 import Placeholder from '@app/components/TitleCard/Placeholder';
 import { useIsTouch } from '@app/hooks/useIsTouch';
-import useLiveDownload from '@app/hooks/useLiveDownload';
+import { useLiveTorrents } from '@app/hooks/useLiveTorrents';
 import useToasts from '@app/hooks/useToasts';
 import { Permission, UserType, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
+import { downloadEtaMessages, formatDownloadEta } from '@app/utils/downloadEta';
 import { cardRefreshInterval } from '@app/utils/refreshIntervalHelper';
+import {
+  followedSeasons,
+  formatSeasonRanges,
+  seasonProgress,
+  seriesProgress,
+  torrentProgress,
+  withLiveTorrents,
+} from '@app/utils/seasonProgress';
 import { withProperties } from '@app/utils/typeHelpers';
 import { Transition } from '@headlessui/react';
 import {
@@ -63,10 +72,6 @@ const messages = defineMessages('components.TitleCard', {
     '<strong>{title}</strong> Removed from watchlist  successfully!',
   watchlistCancel: 'watchlist for <strong>{title}</strong> canceled.',
   watchlistError: 'Something went wrong. Please try again.',
-  etaSoon: 'ETA <1 min',
-  etaMinutes: 'ETA {minutes} min',
-  etaHours: 'ETA {hours}h {minutes}m',
-  importing: 'Importing',
 });
 
 const TitleCard = ({
@@ -109,11 +114,14 @@ const TitleCard = ({
   const [badgeChanged, setBadgeChanged] = useState(false);
   /** A download was seen, so an empty queue now means it's importing. */
   const [sawDownload, setSawDownload] = useState(false);
+  /** Seasons a download was seen for, for the same reason. */
+  const [seenSeasons, setSeenSeasons] = useState<Set<number>>(() => new Set());
 
   // While something is on its way, keep this card's progress current.
   const following =
     mediaType !== 'collection' &&
     (requestedHere ||
+      sawDownload ||
       currentStatus === MediaStatus.PROCESSING ||
       (downloads ?? []).length > 0);
   const { data: latest } = useSWR<MovieDetails | TvDetails>(
@@ -142,41 +150,82 @@ const TitleCard = ({
     activeDownloads.length === 0 &&
     currentStatus === MediaStatus.PROCESSING;
 
+  const downloadingSeasons = [
+    ...new Set(
+      activeDownloads.flatMap((d) =>
+        d.episode ? [d.episode.seasonNumber] : []
+      )
+    ),
+  ]
+    .sort((a, b) => a - b)
+    .join(',');
+
   useEffect(() => {
     if (activeDownloads.length > 0) {
       setSawDownload(true);
     }
   }, [activeDownloads.length]);
 
+  useEffect(() => {
+    if (downloadingSeasons) {
+      setSeenSeasons((seen) => {
+        const next = new Set(seen);
+        downloadingSeasons.split(',').forEach((n) => next.add(Number(n)));
+        return next.size === seen.size ? seen : next;
+      });
+    }
+  }, [downloadingSeasons]);
+
+  // qBittorrent's live numbers in place of the queue's.
+  const liveTorrents = useLiveTorrents(activeDownloads.length > 0);
+  const liveDownloads = withLiveTorrents(activeDownloads, liveTorrents);
+  const now = Date.now();
+  const live = torrentProgress(liveDownloads, now);
+
+  // A series follows each requested season separately: packs per season,
+  // or one complete-series pack.
+  const tvInfo = mediaType === 'tv' ? latest?.mediaInfo : undefined;
+  const seasons = tvInfo
+    ? seasonProgress(
+        followedSeasons(tvInfo.requests ?? [], liveDownloads),
+        tvInfo.seasons ?? [],
+        liveDownloads,
+        seenSeasons,
+        now
+      )
+    : [];
+  const series = seasons.length > 1 ? seriesProgress(seasons) : undefined;
+
   const showRing =
-    (activeDownloads.length > 0 && currentStatus !== MediaStatus.AVAILABLE) ||
-    importing;
-  const live = useLiveDownload(activeDownloads, showRing);
+    currentStatus !== MediaStatus.AVAILABLE &&
+    (activeDownloads.length > 0 ||
+      importing ||
+      // Some seasons in, others still to come.
+      (!!series &&
+        sawDownload &&
+        seasons.some((season) => season.phase !== 'available')));
+  const ringImporting = series ? series.importing : importing || live.done;
+
   const etaLabel = (() => {
     if (!showRing) {
       return undefined;
     }
 
-    if (importing || live.done) {
-      return intl.formatMessage(messages.importing);
+    if (ringImporting) {
+      return intl.formatMessage(downloadEtaMessages.importing);
     }
 
-    if (live.etaMs === undefined) {
-      return undefined;
-    }
+    const eta = formatDownloadEta(intl, series ? series.etaMs : live.etaMs);
+    const ready =
+      series && series.ready.length > 0
+        ? intl.formatMessage(downloadEtaMessages.seasonsReady, {
+            seasons: formatSeasonRanges(series.ready),
+          })
+        : undefined;
 
-    const minutes = Math.ceil(live.etaMs / 60000);
-
-    if (live.etaMs < 60000) {
-      return intl.formatMessage(messages.etaSoon);
-    }
-
-    return minutes < 60
-      ? intl.formatMessage(messages.etaMinutes, { minutes })
-      : intl.formatMessage(messages.etaHours, {
-          hours: Math.floor(minutes / 60),
-          minutes: minutes % 60,
-        });
+    return ready && eta
+      ? intl.formatMessage(downloadEtaMessages.readyAndEta, { ready, eta })
+      : (ready ?? eta);
   })();
   /** Just became available while on screen: a big check, briefly. */
   const [justAvailable, setJustAvailable] = useState(false);
@@ -617,8 +666,9 @@ const TitleCard = ({
             <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center">
               {showRing ? (
                 <DownloadRing
-                  progress={live.progress}
-                  importing={importing || live.done}
+                  progress={series ? series.progress : live.progress}
+                  importing={ringImporting}
+                  segments={series ? seasons : undefined}
                 />
               ) : (
                 <Transition
