@@ -5758,6 +5758,60 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserSettings'
+  /user/{userId}/settings/storage-limit:
+    post:
+      summary: Update a user's storage quota
+      description: Sets only the user's storage quota. Requires `MANAGE_USERS`; administrators cannot change their own quota or another administrator's quota. `null` inherits the global default, and `0` means unlimited. Seerr does not record quota changes; the calling integration must maintain any required adjustment history.
+      tags:
+        - users
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - storageLimitGb
+              properties:
+                storageLimitGb:
+                  type: integer
+                  minimum: 0
+                  maximum: 1048576
+                  nullable: true
+                  description: "GB quota; null inherits the global default and 0 is unlimited. The maximum is 1 PiB, keeping byte conversion within JavaScript's safe integer range."
+                  example: 100
+      responses:
+        '200':
+          description: Updated storage quota
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - id
+                  - storageLimitGb
+                properties:
+                  id:
+                    type: integer
+                  storageLimitGb:
+                    type: integer
+                    nullable: true
+                    example: 100
+        '400':
+          description: Invalid user ID or request body
+        '403':
+          description: Missing permission or unauthorized target
+        '404':
+          description: User not found
   /user/{userId}/settings/password:
     get:
       summary: Get password page informatiom

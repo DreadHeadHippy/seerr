@@ -10,6 +10,7 @@ import { UserSettings } from '@server/entity/UserSettings';
 import type {
   UserSettingsGeneralResponse,
   UserSettingsNotificationsResponse,
+  UserStorageLimitResponse,
 } from '@server/interfaces/api/userSettingsInterfaces';
 import { Permission } from '@server/lib/permissions';
 import { getSettings } from '@server/lib/settings';
@@ -25,9 +26,102 @@ import {
 import { Router } from 'express';
 import net from 'net';
 import { Not } from 'typeorm';
+import { z } from 'zod';
 import { canMakePermissionsChange, canModifyUser } from '.';
 
 const userSettingsRoutes = Router({ mergeParams: true });
+
+// Keep conversion to bytes within Number.MAX_SAFE_INTEGER (1 PiB).
+export const MAX_STORAGE_LIMIT_GB = 1_048_576;
+
+export const storageLimitBodySchema = z.strictObject({
+  storageLimitGb: z
+    .number()
+    .finite()
+    .int()
+    .min(0)
+    .max(MAX_STORAGE_LIMIT_GB)
+    .nullable(),
+});
+
+userSettingsRoutes.post<
+  { id: string },
+  UserStorageLimitResponse,
+  z.infer<typeof storageLimitBodySchema>
+>(
+  '/storage-limit',
+  isAuthenticated(Permission.MANAGE_USERS),
+  async (req, res, next) => {
+    const body = storageLimitBodySchema.safeParse(req.body);
+
+    if (!body.success) {
+      return next({ status: 400, message: 'Invalid storage quota.' });
+    }
+
+    const userId = Number(req.params.id);
+    if (!/^[1-9]\d*$/.test(req.params.id) || !Number.isSafeInteger(userId)) {
+      return next({ status: 400, message: 'Invalid user ID.' });
+    }
+
+    const requester = req.user;
+    if (!requester) {
+      return next({
+        status: 403,
+        message: 'You do not have permission to modify this user.',
+      });
+    }
+
+    const userRepository = getRepository(User);
+
+    try {
+      const user = await userRepository.findOne({
+        where: { id: userId },
+        select: ['id', 'permissions'],
+        loadEagerRelations: false,
+      });
+
+      if (!user) {
+        return next({ status: 404, message: 'User not found.' });
+      }
+
+      if (
+        user.id === requester.id ||
+        (user.id === 1 && requester.id !== 1) ||
+        // Reject all privileged targets: MANAGE_USERS includes ADMIN (permissions.ts), and matches the
+        // legacy /settings/main quota gate. Admins/user-managers are unlimited, so their quota is not writable.
+        user.hasPermission(Permission.MANAGE_USERS) ||
+        !canModifyUser(user, requester)
+      ) {
+        return next({
+          status: 403,
+          message: "You do not have permission to modify this user's quota.",
+        });
+      }
+
+      const updateResult = await userRepository
+        .createQueryBuilder()
+        .update(User)
+        .set({
+          storageLimitGb: body.data.storageLimitGb,
+          // TypeORM otherwise advances this column on every update.
+          updatedAt: () => '"updatedAt"',
+        })
+        .where('id = :id', { id: user.id })
+        .execute();
+
+      if (updateResult.affected === 0) {
+        return next({ status: 404, message: 'User not found.' });
+      }
+
+      return res.status(200).json({
+        id: user.id,
+        storageLimitGb: body.data.storageLimitGb,
+      });
+    } catch (e) {
+      return next({ status: 500, message: e.message });
+    }
+  }
+);
 
 userSettingsRoutes.get<{ id: string }, UserSettingsGeneralResponse>(
   '/main',
